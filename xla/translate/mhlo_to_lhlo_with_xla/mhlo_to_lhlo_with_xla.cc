@@ -1390,6 +1390,10 @@ tsl::StatusOr<lmhlo::AllReduceOp> LhloDialectEmitter::EmitAllReduceOp(
   TF_RETURN_IF_ERROR(xla::HloFunctionImporter::ImportAsRegion(
       *instr->called_computations()[0], symbol_table_,
       &all_reduce_op.getComputation(), &builder_));
+  auto debug_opts = instr->GetModule()->config().debug_options();
+  all_reduce_op->setAttr(
+      "allow_small_all_reduce_kernel",
+      builder_.getBoolAttr(debug_opts.xla_gpu_allow_small_all_reduce_kernel()));
   return all_reduce_op;
 }
 
@@ -1415,6 +1419,10 @@ LhloDialectEmitter::EmitAllReduceStartOp(const HloInstruction* instr) {
   TF_RETURN_IF_ERROR(xla::HloFunctionImporter::ImportAsRegion(
       *instr->called_computations()[0], symbol_table_,
       &all_reduce_start_op.getComputation(), &builder_));
+  auto debug_opts = instr->GetModule()->config().debug_options();
+  all_reduce_start_op->setAttr(
+      "allow_small_all_reduce_kernel",
+      builder_.getBoolAttr(debug_opts.xla_gpu_allow_small_all_reduce_kernel()));
 
   auto [_, was_inserted] =
       ret_tokens_.insert({instr, all_reduce_start_op.getToken()});
