@@ -40,7 +40,6 @@ namespace {
 
 using tensorflow::profiler::Device;
 using tensorflow::profiler::Resource;
-using tensorflow::profiler::Trace;
 using tensorflow::profiler::TraceEvent;
 using tensorflow::profiler::XSpace;
 
