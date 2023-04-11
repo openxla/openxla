@@ -266,8 +266,6 @@ static Status CreateHloXlaPipeline(
         mlir::deallocation::createDeallocationSimplificationPass());
     pm.addNestedPass<FuncOp>(mlir::deallocation::createDeallocationToScfPass());
   } else {
-    pm.addNestedPass<FuncOp>(
-        mlir::bufferization::createPromoteBuffersToStackPass(nullptr));
     pm.addNestedPass<mlir::func::FuncOp>(
         mlir::bufferization::createBufferDeallocationPass());
     pm.addPass(mlir::createBufferizationToMemRefPass());
