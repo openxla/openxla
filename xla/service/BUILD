@@ -653,6 +653,7 @@ cc_library(
         "//xla:statusor",
         "//xla/hlo/ir:hlo",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "@tsl//tsl/platform:errors",
     ],
 )
