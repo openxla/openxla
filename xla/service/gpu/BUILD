@@ -2261,6 +2261,7 @@ cc_library(
         ":tree_reduction_rewriter",
         ":variadic_op_splitter",
         "//xla:autotune_results_proto_cc",
+        "//xla:autotune_serialize",
         "//xla:status_macros",
         "//xla:statusor",
         "//xla:types",
@@ -2389,7 +2390,6 @@ cc_library(
     ] + if_cuda_is_configured([
         ":gemm_algorithm_picker",
         ":triton_autotuner",
-        "//xla:autotune_serialize",
     ]),
 )
 
