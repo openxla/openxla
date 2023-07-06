@@ -388,6 +388,7 @@ cc_library(
         ":cuda_platform_id",
         ":cuda_stream",
         ":cudnn_lib",
+        ":cuda_graph",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/strings",
