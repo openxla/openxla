@@ -48,6 +48,11 @@ package_group(
 
 exports_files(["run_lit.sh"])
 
+cc_library(
+    name = "fake_header",
+    hdrs = ["fake_header.h"],
+)
+
 # Filegroup used to collect source files for dependency checking.
 filegroup(
     name = "c_srcs",
@@ -103,6 +108,7 @@ cc_library(
     hdrs = ["bit_cast.h"],
     visibility = [":friends"],
     deps = [
+        ":fake_header",
         ":types",
         "@com_google_absl//absl/base",
         "@eigen_archive//:eigen3",
