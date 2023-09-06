@@ -3,7 +3,6 @@
 
 load("//tsl:tsl.bzl", "if_windows")
 load("//tsl:tsl.default.bzl", "tsl_pybind_extension")
-load("//tsl/platform:rules_cc.bzl", "cc_shared_library")
 
 package(
     # copybara:uncomment default_applicable_licenses = ["//tensorflow:license"],
