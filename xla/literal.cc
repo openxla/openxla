@@ -342,11 +342,11 @@ Literal LiteralBase::CreateFromShapeWithUndeterminedLeafArrays(
   return literal;
 }
 
-int32_t LiteralBase::GetDynamicSize(int64_t dim_index) const {
+int64_t LiteralBase::GetDynamicSize(int64_t dim_index) const {
   return GetDynamicSize(dim_index, {});
 }
 
-int32_t LiteralBase::GetDynamicSize(int64_t dim_index,
+int64_t LiteralBase::GetDynamicSize(int64_t dim_index,
                                     const ShapeIndex& shape_index) const {
   return piece(shape_index).GetDynamicSize(dim_index);
 }
@@ -569,7 +569,7 @@ void CopyElementsBetween(absl::Span<NativeT> dest,
 }
 }  // namespace
 
-int32_t LiteralBase::Piece::GetDynamicSize(int64_t dim_index) const {
+int64_t LiteralBase::Piece::GetDynamicSize(int64_t dim_index) const {
   CHECK(LayoutUtil::IsDenseArray(subshape()));
   if (!subshape_->is_dynamic_dimension(dim_index)) {
     // This is a static dimension, return size.
@@ -578,7 +578,7 @@ int32_t LiteralBase::Piece::GetDynamicSize(int64_t dim_index) const {
   return dynamic_size_buffer()[dim_index];
 }
 
-void LiteralBase::Piece::SetDynamicSize(int64_t dim_index, int32_t size) {
+void LiteralBase::Piece::SetDynamicSize(int64_t dim_index, int64_t size) {
   CHECK(LayoutUtil::IsDenseArray(subshape()));
   CHECK(subshape_->is_dynamic_dimension(dim_index));
   dynamic_size_buffer()[dim_index] = size;
@@ -663,13 +663,13 @@ Status LiteralBase::Piece::CopyFrom(const LiteralBase::Piece& src,
   return OkStatus();
 }
 
-void MutableLiteralBase::SetDynamicSize(int64_t dim_index, int32_t size) {
+void MutableLiteralBase::SetDynamicSize(int64_t dim_index, int64_t size) {
   return SetDynamicSize(dim_index, {}, size);
 }
 
 void MutableLiteralBase::SetDynamicSize(int64_t dim_index,
                                         const ShapeIndex& shape_index,
-                                        int32_t size) {
+                                        int64_t size) {
   Shape* subshape =
       ShapeUtil::GetMutableSubshape(mutable_shape_do_not_use(), shape_index);
   CHECK(LayoutUtil::IsDenseArray(*subshape))
