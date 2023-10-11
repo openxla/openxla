@@ -2342,6 +2342,7 @@ tf_proto_library(
 cc_library(
     name = "target_constants",
     hdrs = ["target_constants.h"],
+    visibility = ["//visibility:public"],
 )
 
 cc_library(
@@ -3227,6 +3228,7 @@ cc_library(
     hdrs = ["gpu_asm_opts_util.h"],
     compatible_with = get_compatible_with_portable(),
     copts = tsl_copts(),
+    visibility = ["//visibility:public"],
     deps = [
         "//xla:xla_proto_cc",
         "//xla/stream_executor/gpu:gpu_asm_opts",

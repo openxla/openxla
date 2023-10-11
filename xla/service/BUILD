@@ -3787,6 +3787,7 @@ cc_library(
     name = "computation_placer",
     srcs = ["computation_placer.cc"],
     hdrs = ["computation_placer.h"],
+    visibility = ["//visibility:public"],
     deps = [
         ":global_device_id",
         "//xla:array2d",
@@ -3816,6 +3817,7 @@ cc_library(
 cc_library(
     name = "computation_placer_hdr",
     hdrs = ["computation_placer.h"],
+    visibility = ["//visibility:public"],
     deps = [
         ":global_device_id",
         "//xla:array2d",
@@ -5177,6 +5179,7 @@ cc_library(
     name = "hlo_module_config",
     srcs = ["hlo_module_config.cc"],
     hdrs = ["hlo_module_config.h"],
+    visibility = ["//visibility:public"],
     deps = [
         ":computation_layout",
         ":computation_placer",
@@ -5863,6 +5866,7 @@ cc_library(
     name = "hlo_parser",
     srcs = ["hlo_parser.cc"],
     hdrs = ["hlo_parser.h"],
+    visibility = ["//visibility:public"],
     deps = [
         ":computation_layout",
         ":hlo_lexer",
