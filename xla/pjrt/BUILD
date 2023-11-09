@@ -910,6 +910,7 @@ cc_library(
     visibility = [":friends"],
     deps = [
         ":pjrt_client",
+        ":pjrt_executable",
         ":pjrt_future",
     ],
 )
