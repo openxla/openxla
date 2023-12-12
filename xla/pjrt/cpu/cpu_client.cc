@@ -576,7 +576,8 @@ TfrtCpuClient::DeserializeExecutable(absl::string_view serialized,
     for (int replica = 0; replica < num_replicas; ++replica) {
       for (int partition = 0; partition < num_partitions; ++partition) {
         int device_id = (*device_assignment)(replica, partition);
-        TF_ASSIGN_OR_RETURN(PjRtDevice * device, LookupDevice(device_id));
+        TF_ASSIGN_OR_RETURN(PjRtDevice * device,
+                            LookupDevice(PjRtGlobalDeviceId(device_id)));
         if (device->process_index() != process_index()) {
           VLOG(3) << "Non-local device: " << device_id;
           continue;
@@ -676,7 +677,7 @@ StatusOr<std::unique_ptr<PjRtLoadedExecutable>> TfrtCpuClient::Compile(
            computation < device_assignment->computation_count();
            ++computation) {
         int id = (*device_assignment)(replica, computation);
-        TF_ASSIGN_OR_RETURN(auto* device, LookupDevice(id));
+        TF_ASSIGN_OR_RETURN(auto* device, LookupDevice(PjRtGlobalDeviceId(id)));
         if (device->process_index() != process_index()) {
           // TODO(phawkins): improve this error message when we're ready to
           // publicize that multiprocess collectives exist.
@@ -702,7 +703,8 @@ StatusOr<std::unique_ptr<PjRtLoadedExecutable>> TfrtCpuClient::Compile(
     for (int replica = 0; replica < num_replicas; ++replica) {
       for (int partition = 0; partition < num_partitions; ++partition) {
         int device_id = (*device_assignment)(replica, partition);
-        TF_ASSIGN_OR_RETURN(PjRtDevice * device, LookupDevice(device_id));
+        TF_ASSIGN_OR_RETURN(PjRtDevice * device,
+                            LookupDevice(PjRtGlobalDeviceId(device_id)));
         if (device->process_index() != process_index()) {
           VLOG(3) << "Non-local device: " << device_id;
           continue;
@@ -1106,7 +1108,7 @@ StatusOr<PjRtLoadedExecutable::Result> TfrtCpuExecutable::ExecuteHelper(
     CHECK(device_assignment_ != nullptr);
     const int device_id = (*device_assignment_)(replica, partition);
     TF_ASSIGN_OR_RETURN(PjRtDevice * pjrt_device,
-                        client_->LookupDevice(device_id));
+                        client_->LookupDevice(PjRtGlobalDeviceId(device_id)));
     device = tensorflow::down_cast<TfrtCpuDevice*>(pjrt_device);
     device_assignment = device_assignment_;
   } else {

@@ -352,7 +352,8 @@ class PjRtStreamExecutorClient : public PjRtClient {
 
   LocalDeviceState& device_state(int device_ordinal) const {
     return *tensorflow::down_cast<PjRtStreamExecutorDevice*>(
-                LookupAddressableDevice(device_ordinal).value())
+                LookupAddressableDevice(PjRtLocalDeviceId(device_ordinal))
+                    .value())
                 ->local_device_state();
   }
   LocalClient* client() const { return client_; }

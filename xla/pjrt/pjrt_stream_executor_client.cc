@@ -2698,7 +2698,8 @@ PjRtStreamExecutorLoadedExecutable::ExecuteHelper(
   if (device == nullptr) {
     CHECK(device_assignment_ != nullptr);
     const int device_id = (*device_assignment_)(replica, partition);
-    TF_ASSIGN_OR_RETURN(device, client_->LookupDevice(device_id));
+    TF_ASSIGN_OR_RETURN(device,
+                        client_->LookupDevice(PjRtGlobalDeviceId(device_id)));
     device_assignment = device_assignment_;
   } else {
     CHECK(device_assignment_ == nullptr);
@@ -3045,7 +3046,8 @@ PjRtStreamExecutorClient::GetExecutableExtras(CompileOptions* options) {
     for (int replica = 0; replica < num_replicas; ++replica) {
       for (int partition = 0; partition < num_partitions; ++partition) {
         int device_id = (*device_assignment)(replica, partition);
-        TF_ASSIGN_OR_RETURN(PjRtDevice * device, LookupDevice(device_id));
+        TF_ASSIGN_OR_RETURN(PjRtDevice * device,
+                            LookupDevice(PjRtGlobalDeviceId(device_id)));
         if (device->process_index() != process_index()) {
           VLOG(3) << "Non-local device: " << device_id;
           continue;
