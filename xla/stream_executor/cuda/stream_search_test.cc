@@ -26,8 +26,7 @@ class StreamSearchTest : public ::testing::Test {
  public:
   Platform* GetPlatform() { return *PlatformManager::PlatformWithName("CUDA"); }
 };
-
-TEST_F(StreamSearchTest, NoMatchBadPtr) {
+xx TEST_F(StreamSearchTest, NoMatchBadPtr) {
   void* bad_ptr = reinterpret_cast<void*>(0xdeadbeef);
 
   StreamExecutorConfig config;
