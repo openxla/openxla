@@ -1393,7 +1393,7 @@ Status PyHostValue::CopyToHostAsync(std::optional<Shape>& dynamic_shape_holder,
 }
 
 Status PyArray::SetUpType() {
-  static constexpr char kName[] = "ArrayImpl";
+  static constexpr char kName[] = "Array";
 
   py::str name = py::str(kName);
   py::str qualname = py::str(kName);
@@ -1439,6 +1439,7 @@ Status PyArray::RegisterTypes(py::module& m) {
   auto type = py::reinterpret_borrow<py::object>(type_);
   m.attr("ArrayImpl") = type;
 
+  type.attr("__module__") = "jax";
   type.attr("__init__") = py::cpp_function(
       [](py::object self, py::object aval, py::object sharding, py::list arrays,
          bool committed, bool skip_checks) {
@@ -1527,7 +1528,6 @@ Status PyArray::RegisterTypes(py::module& m) {
         }
       });
   type.attr("clone") = py::cpp_function(&PyArray::Clone, py::is_method(type));
-  type.attr("__module__") = m.attr("__name__");
 
   m.attr("copy_array_to_devices_with_sharding") = py::cpp_function(
       [](PyArray self, std::vector<ClientAndPtr<PjRtDevice>> dst_devices,
