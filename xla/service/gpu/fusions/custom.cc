@@ -73,6 +73,7 @@ namespace {
 
 constexpr unsigned kGEMMOutputBufferIndex = 0;
 constexpr unsigned kGEMMWorkspaceBufferIndex = 1;
+constexpr unsigned kGEMMArgCount = 4;
 
 absl::StatusOr<std::unique_ptr<Thunk>> BuildCustomKernelThunkForFusion(
     IrEmitterContext& ir_emitter_context, const HloFusionInstruction& fusion,
@@ -122,7 +123,7 @@ absl::StatusOr<BufferAllocation::Slice> GetOperandSlice(
     if (!IsContiguousSlice(slice_instr->operand(0)->shape(),
                            slice_instr->shape())) {
       return absl::InternalError(
-          "DynamicAddressComputationFusion only handles contiguous slices "
+          "AddressComputationFusion only handles contiguous slices "
           "currently");
     }
 
@@ -239,7 +240,7 @@ absl::StatusOr<BufferAllocation::Slice> GetResultSlice(
                                ->update()
                                ->shape())) {
       return absl::InternalError(
-          "DynamicAddressComputationFusion only handles contiguous slices "
+          "AddressComputationFusion only handles contiguous slices "
           "currently");
     }
   }
@@ -255,12 +256,13 @@ absl::StatusOr<FusionEmissionResult> EmitGemm(
       ir_emitter_context.buffer_assignment();
 
   std::vector<std::optional<std::vector<BufferAllocation::Slice>>>
-      offset_buffer_indices(4, std::nullopt);
-  std::vector<std::optional<Shape>> orig_shapes(4, std::nullopt);
-  std::vector<std::optional<Shape>> sliced_shapes(4, std::nullopt);
-  std::vector<std::optional<uint64_t>> offset_byte_sizes(4, std::nullopt);
+      offset_buffer_indices(kGEMMArgCount, std::nullopt);
+  std::vector<std::optional<Shape>> orig_shapes(kGEMMArgCount, std::nullopt);
+  std::vector<std::optional<Shape>> sliced_shapes(kGEMMArgCount, std::nullopt);
+  std::vector<std::optional<uint64_t>> offset_byte_sizes(kGEMMArgCount,
+                                                         std::nullopt);
 
-  std::vector<HloInstruction*> slice_instrs(4, nullptr);
+  std::vector<HloInstruction*> slice_instrs(kGEMMArgCount, nullptr);
 
   unsigned arg_idx = 0;
   TF_ASSIGN_OR_RETURN(BufferAllocation::Slice lhs_slice,
@@ -289,7 +291,8 @@ absl::StatusOr<FusionEmissionResult> EmitGemm(
   // different offset by creating new fake allocations so each operand will have
   // a different buffer index. The slices can thus always start at offset 0.
   // AddressComputationThunk will take care of the offset adjustment.
-  std::vector<std::unique_ptr<BufferAllocation>> fake_allocations(4);
+  std::vector<std::unique_ptr<BufferAllocation>> fake_allocations(
+      kGEMMArgCount);
   if (fusion.shape().IsArray()) {
     TF_ASSIGN_OR_RETURN(
         output, GetResultSlice(buffer_assignment, adaptor, fusion, custom_call,
@@ -736,28 +739,6 @@ absl::StatusOr<FusionEmissionResult> AddressComputationFusion::Emit(
   if (maybe_custom_call_adaptor == std::nullopt) {
     return absl::InternalError(
         "AddressComputationFusion requires a CustomCall hero");
-  }
-
-  const auto& custom_call = *static_cast<const HloCustomCallInstruction*>(
-      &maybe_custom_call_adaptor->instruction());
-  // TODO(vuson): these Emit* are mostly duplicated from ir_emitter_unnested
-  if (IsLegacyCublasMatmul(custom_call)) {
-    return EmitGemm(ir_emitter_context, adaptor, fusion, custom_call);
-  }
-
-  return EmitCustomCall(ir_emitter_context, adaptor, fusion, custom_call);
-}
-
-absl::StatusOr<FusionEmissionResult> DynamicAddressComputationFusion::Emit(
-    IrEmitterContext& ir_emitter_context,
-    const HloFusionInstruction& fusion) const {
-  const HloFusionAdaptor& adaptor = analysis_.fusion();
-  auto maybe_custom_call_adaptor = HloFindIf(
-      adaptor.GetRoots(), adaptor,
-      [](auto node) { return node.opcode() == HloOpcode::kCustomCall; });
-  if (maybe_custom_call_adaptor == std::nullopt) {
-    return absl::InternalError(
-        "DynamicAddressComputationFusion requires a CustomCall hero");
   }
 
   const auto& custom_call = *static_cast<const HloCustomCallInstruction*>(
