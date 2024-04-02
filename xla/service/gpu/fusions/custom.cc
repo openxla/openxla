@@ -122,7 +122,7 @@ absl::StatusOr<BufferAllocation::Slice> GetOperandSlice(
     if (!IsContiguousSlice(slice_instr->operand(0)->shape(),
                            slice_instr->shape())) {
       return absl::InternalError(
-          "DynamicAddressComputationFusion only handles contiguous slices "
+          "AddressComputationFusion only handles contiguous slices "
           "currently");
     }
 
@@ -239,7 +239,7 @@ absl::StatusOr<BufferAllocation::Slice> GetResultSlice(
                                ->update()
                                ->shape())) {
       return absl::InternalError(
-          "DynamicAddressComputationFusion only handles contiguous slices "
+          "AddressComputationFusion only handles contiguous slices "
           "currently");
     }
   }
@@ -736,28 +736,6 @@ absl::StatusOr<FusionEmissionResult> AddressComputationFusion::Emit(
   if (maybe_custom_call_adaptor == std::nullopt) {
     return absl::InternalError(
         "AddressComputationFusion requires a CustomCall hero");
-  }
-
-  const auto& custom_call = *static_cast<const HloCustomCallInstruction*>(
-      &maybe_custom_call_adaptor->instruction());
-  // TODO(vuson): these Emit* are mostly duplicated from ir_emitter_unnested
-  if (IsLegacyCublasMatmul(custom_call)) {
-    return EmitGemm(ir_emitter_context, adaptor, fusion, custom_call);
-  }
-
-  return EmitCustomCall(ir_emitter_context, adaptor, fusion, custom_call);
-}
-
-absl::StatusOr<FusionEmissionResult> DynamicAddressComputationFusion::Emit(
-    IrEmitterContext& ir_emitter_context,
-    const HloFusionInstruction& fusion) const {
-  const HloFusionAdaptor& adaptor = analysis_.fusion();
-  auto maybe_custom_call_adaptor = HloFindIf(
-      adaptor.GetRoots(), adaptor,
-      [](auto node) { return node.opcode() == HloOpcode::kCustomCall; });
-  if (maybe_custom_call_adaptor == std::nullopt) {
-    return absl::InternalError(
-        "DynamicAddressComputationFusion requires a CustomCall hero");
   }
 
   const auto& custom_call = *static_cast<const HloCustomCallInstruction*>(
