@@ -195,7 +195,7 @@ struct D : public A {};
 }  // namespace
 
 TEST(AsyncValueRefTest, Isa) {
-  // Empty async reference always returns false for any Isa<T>().
+  // Empty async reference always returns false for any Isa<T>.
   AsyncValueRef<A> null_ref;
   EXPECT_FALSE(Isa<A>(null_ref));
 
@@ -208,6 +208,35 @@ TEST(AsyncValueRefTest, Isa) {
   EXPECT_TRUE(Isa<B>(b_ref));
   EXPECT_TRUE(Isa<C>(c_ref));
   EXPECT_TRUE(Isa<D>(d_ref));
+
+  // Error async value is Isa<T> of any type in the hierarchy.
+  AsyncValueRef<A> err = MakeErrorAsyncValueRef(absl::InternalError("error"));
+  EXPECT_TRUE(Isa<A>(err));
+  EXPECT_TRUE(Isa<B>(err));
+  EXPECT_TRUE(Isa<C>(err));
+  EXPECT_TRUE(Isa<D>(err));
+
+  // If the value was constructed with a concrete type it should return true
+  // for Isa<T> even if it was set to error later but only if types match.S
+  AsyncValueRef<A> a_err = MakeConstructedAsyncValueRef<A>();
+  AsyncValueRef<B> b_err = MakeConstructedAsyncValueRef<B>();
+  a_err.SetError(absl::InternalError("error"));
+  b_err.SetError(absl::InternalError("error"));
+
+  EXPECT_TRUE(Isa<A>(a_err));
+  EXPECT_TRUE(Isa<B>(b_err));
+
+  // Indirect async value is Isa<T> only if it would be a no-op cast.
+  auto indirect = MakeIndirectAsyncValue();
+  AsyncValueRef<A> c_indirect(indirect);
+  EXPECT_TRUE(Isa<A>(c_indirect));
+  EXPECT_FALSE(Isa<C>(c_indirect));
+
+  // After forwarding indirect async value to a concrete one it correctly
+  // returns true from Isa<T> check.
+  indirect->ForwardTo(c_ref.CopyRCRef());
+  EXPECT_TRUE(Isa<A>(c_indirect));
+  EXPECT_TRUE(Isa<C>(c_indirect));
 }
 
 TEST(AsyncValueRefTest, DynCast) {
@@ -232,6 +261,37 @@ TEST(AsyncValueRefTest, DynCast) {
 
   // Types are unrelated, although they have same base.
   EXPECT_FALSE(DynCast<C>(d_ref));
+
+  // Error async value can be DynCast to any type in the hierarchy.
+  AsyncValueRef<A> err = MakeErrorAsyncValueRef(absl::InternalError("error"));
+  EXPECT_TRUE(DynCast<A>(err));
+  EXPECT_TRUE(DynCast<B>(err));
+  EXPECT_TRUE(DynCast<C>(err));
+  EXPECT_TRUE(DynCast<D>(err));
+
+  // If the value was constructed with a concrete type it should DynCast
+  // successfully even it it was set to error later but only if types match.
+  AsyncValueRef<A> a_err = MakeConstructedAsyncValueRef<A>();
+  AsyncValueRef<B> b_err = MakeConstructedAsyncValueRef<B>();
+  a_err.SetError(absl::InternalError("error"));
+  b_err.SetError(absl::InternalError("error"));
+
+  EXPECT_TRUE(DynCast<A>(a_err));
+  EXPECT_TRUE(DynCast<B>(b_err));
+  EXPECT_FALSE(DynCast<C>(a_err));
+
+  // Indirect async value can't be DynCast until it's forwarded unless it's a
+  // no-op DynCast to the same type.
+  auto indirect = MakeIndirectAsyncValue();
+  AsyncValueRef<A> c_indirect(indirect);
+  EXPECT_TRUE(DynCast<A>(c_indirect));
+  EXPECT_FALSE(DynCast<C>(c_indirect));
+
+  // After forwarding indirect async value to a concrete one it can be DynCast
+  // to a concrete type.
+  indirect->ForwardTo(c_ref.CopyRCRef());
+  EXPECT_TRUE(DynCast<A>(c_indirect));
+  EXPECT_TRUE(DynCast<C>(c_indirect));
 }
 
 TEST(AsyncValueRefTest, Cast) {
@@ -246,6 +306,35 @@ TEST(AsyncValueRefTest, Cast) {
   EXPECT_TRUE(Cast<D>(d_ref));
 
   EXPECT_TRUE(Cast<A>(c_ref));
+
+  // Error async value can be Cast to any type in the hierarchy.
+  AsyncValueRef<A> err = MakeErrorAsyncValueRef(absl::InternalError("error"));
+  EXPECT_TRUE(Cast<A>(err));
+  EXPECT_TRUE(Cast<B>(err));
+  EXPECT_TRUE(Cast<C>(err));
+  EXPECT_TRUE(Cast<D>(err));
+
+  // If the value was constructed with a concrete type it should Cast
+  // successfully even it it was set to error later but only if types match.
+  AsyncValueRef<A> a_err = MakeConstructedAsyncValueRef<A>();
+  AsyncValueRef<B> b_err = MakeConstructedAsyncValueRef<B>();
+  a_err.SetError(absl::InternalError("error"));
+  b_err.SetError(absl::InternalError("error"));
+
+  EXPECT_TRUE(Cast<A>(a_err));
+  EXPECT_TRUE(Cast<B>(b_err));
+
+  // Indirect async value can't be Cast until it's forwarded unless it's a
+  // no-op Cast to the same type.
+  auto indirect = MakeIndirectAsyncValue();
+  AsyncValueRef<A> c_indirect(indirect);
+  EXPECT_TRUE(Cast<A>(c_indirect));
+
+  // After forwarding indirect async value to a concrete one it can be Cast
+  // to a concrete type.
+  indirect->ForwardTo(c_ref.CopyRCRef());
+  EXPECT_TRUE(Cast<A>(c_indirect));
+  EXPECT_TRUE(Cast<C>(c_indirect));
 }
 
 }  // namespace tsl
