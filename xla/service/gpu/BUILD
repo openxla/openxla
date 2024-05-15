@@ -881,12 +881,6 @@ cuda_library(
     deps = ["@local_config_cuda//cuda:cuda_headers"],
 )
 
-# TODO(b/244780257): Remove this config.
-bool_flag(
-    name = "enable_xlir",
-    build_setting_default = if_google(True, False),
-)
-
 cc_library(
     name = "gpu_executable",
     srcs = [
