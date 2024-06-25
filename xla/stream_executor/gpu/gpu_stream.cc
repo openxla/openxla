@@ -32,6 +32,9 @@ limitations under the License.
 #include "xla/stream_executor/stream.h"
 #include "tsl/platform/errors.h"
 
+#if GOOGLE_CUDA
+#include "nvtx3/nvToolsExtCuda.h"
+#endif
 namespace stream_executor {
 namespace gpu {
 
@@ -159,6 +162,13 @@ void GpuStream::Destroy() {
 
 bool GpuStream::IsIdle() const {
   return GpuDriver::IsStreamIdle(parent_->gpu_context(), gpu_stream_);
+}
+
+void GpuStream::set_name(absl::string_view name) {
+  name_ = name;
+#if GOOGLE_CUDA
+  nvtxNameCuStreamA(gpu_stream(), name_.c_str());
+#endif
 }
 
 GpuStream* AsGpuStream(Stream* stream) {

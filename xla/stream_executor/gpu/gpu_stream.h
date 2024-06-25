@@ -109,6 +109,8 @@ class GpuStream : public StreamCommon {
   absl::Status Memcpy(DeviceMemoryBase* gpu_dst,
                       const DeviceMemoryBase& gpu_src, uint64_t size) override;
 
+  void set_name(absl::string_view name) override;
+
  private:
   GpuExecutor* parent_;         // Executor that spawned this stream.
   GpuStreamHandle gpu_stream_;  // Wrapped CUDA stream handle.
