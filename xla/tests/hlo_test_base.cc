@@ -381,6 +381,48 @@ absl::StatusOr<std::vector<Literal>> HloTestBase::ExecuteReplicated(
   return runner_->ExecuteReplicated(std::move(module), options);
 }
 
+std::vector<int> HloTestBase::CompareInputs(const HloModule& module_0,
+                                            const HloModule& module_1) {
+  const auto params_0 = module_0.entry_computation()->parameter_instructions();
+  const auto params_1 = module_1.entry_computation()->parameter_instructions();
+  std::vector<int> mismatches;
+  int64_t min = std::min(params_0.size(), params_1.size());
+  int64_t max = std::max(params_0.size(), params_1.size());
+  for (int64_t i = 0; i < min; ++i) {
+    const HloModuleConfig& module_config_0 = module_0.config();
+    const Shape& param_shape_0 =
+        (module_config_0.has_entry_computation_layout() &&
+         module_config_0.entry_computation_layout()
+             .parameter_layout(i)
+             .shape()
+             .is_static())
+            ? module_config_0.entry_computation_layout()
+                  .parameter_layout(i)
+                  .shape()
+            : params_0[i]->shape();
+
+    const HloModuleConfig& module_config_1 = module_1.config();
+    const Shape& param_shape_1 =
+        (module_config_1.has_entry_computation_layout() &&
+         module_config_1.entry_computation_layout()
+             .parameter_layout(i)
+             .shape()
+             .is_static())
+            ? module_config_1.entry_computation_layout()
+                  .parameter_layout(i)
+                  .shape()
+            : params_1[i]->shape();
+
+    if (!Shape::Equal().IgnoreTilesInLayout()(param_shape_0, param_shape_1)) {
+      mismatches.push_back(i);
+    }
+  }
+  for (int64_t i = min; i < max; i++) {
+    mismatches.push_back(i);
+  }
+  return mismatches;
+}
+
 absl::StatusOr<std::vector<Literal>> HloTestBase::ExecuteReplicated(
     std::unique_ptr<HloModule> module, absl::Span<Literal* const> arguments,
     int64_t num_replicas, DeviceAssignment* device_assignment,
