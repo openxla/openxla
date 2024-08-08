@@ -372,6 +372,48 @@ _TENSORFLOW_GPU_BUILD = Build(
     ),
 )
 
+_TENSORFLOW_CPU_BUILD = Build(
+    type_=BuildType.TENSORFLOW_CPU,
+    repo="tensorflow/tensorflow",
+    docker_image=_DEFAULT_IMAGE,
+    configs=("release_cpu_linux", "rbe_linux_cpu"),
+    target_patterns=(
+        "//tensorflow/compiler/...",
+        "//tensorflow/python/...",
+        "//tensorflow/core/...",
+        "-//tensorflow/python/compiler/tensorrt/test:unary_test_gpu",
+    ),
+    build_tag_filters=("-no_oss", "-gpu"),
+    test_tag_filters=("-no_oss", "-gpu"),
+    options=dict(
+        verbose_failures=True,
+        test_output="errors",
+        override_repository="xla=/github/xla",
+        profile="profile.json.gz",
+    ),
+)
+
+_TENSORFLOW_GPU_BUILD = Build(
+    type_=BuildType.TENSORFLOW_GPU,
+    repo="tensorflow/tensorflow",
+    docker_image=_DEFAULT_IMAGE,
+    configs=("release_gpu_linux", "rbe_linux_cuda"),
+    target_patterns=(
+        "//tensorflow/compiler/...",
+        "//tensorflow/python/...",
+        "//tensorflow/core/...",
+        "-//tensorflow/python/compiler/tensorrt/test:unary_test_gpu",
+    ),
+    build_tag_filters=("-no_oss", "+gpu"),
+    test_tag_filters=("-no_oss", "+gpu"),
+    options=dict(
+        verbose_failures=True,
+        test_output="errors",
+        override_repository="xla=/github/xla",
+        profile="profile.json.gz",
+    ),
+)
+
 _KOKORO_JOB_NAME_TO_BUILD_MAP = {
     "tensorflow/xla/linux/arm64/build_cpu": _CPU_ARM64_BUILD,
     "tensorflow/xla/linux/cpu/build_cpu": _CPU_X86_BUILD,
