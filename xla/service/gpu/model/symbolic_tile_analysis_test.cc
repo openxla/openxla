@@ -156,7 +156,6 @@ ENTRY main {
   TF_ASSERT_OK_AND_ASSIGN(TiledHloComputation tiled_hlo_computation,
                           analysis->ComputeTiledHloInstructions(
                               /*tile_parameters=*/{1, 10},
-                              /*constraints_are_known_satisfied=*/false,
                               /*compute_all_tile_offset_indexing_maps=*/true));
 
   const TiledHloInstruction* root = tiled_hlo_computation.GetRoot();
@@ -304,7 +303,6 @@ ENTRY main {
   TF_ASSERT_OK_AND_ASSIGN(TiledHloComputation tiled_hlo_computation,
                           analysis->ComputeTiledHloInstructions(
                               /*tile_parameters=*/{2, 4, 2},
-                              /*constraints_are_known_satisfied=*/false,
                               /*compute_all_tile_offset_indexing_maps=*/true));
 
   const TiledHloInstruction* root = tiled_hlo_computation.GetRoot();
@@ -351,7 +349,6 @@ ENTRY main {
   TF_ASSERT_OK_AND_ASSIGN(TiledHloComputation tiled_hlo_computation,
                           analysis->ComputeTiledHloInstructions(
                               /*tile_parameters=*/{2, 2},
-                              /*constraints_are_known_satisfied=*/false,
                               /*compute_all_tile_offset_indexing_maps=*/true));
 
   const TiledHloInstruction* root = tiled_hlo_computation.GetRoot();
@@ -533,8 +530,8 @@ ENTRY main {
               StatusIs(absl::StatusCode::kInvalidArgument));
 
   // ... unless we pinky-promise (lie) that they satisfy the constraints ;)
-  TF_EXPECT_OK(analysis->ComputeTiledHloInstructions(
-      impossible_tile_parameters, /*constraints_are_known_satisfied=*/true));
+  TF_EXPECT_OK(
+      analysis->ComputeTiledHloInstructions(impossible_tile_parameters));
 }
 
 TEST_F(SymbolicTileAnalysisTest, EmitterSpecificConstraintsAreUsedCorrectly) {
@@ -850,7 +847,6 @@ ENTRY main {
   TF_ASSERT_OK_AND_ASSIGN(TiledHloComputation tiled_hlo_computation,
                           analysis->ComputeTiledHloInstructions(
                               /*tile_parameters=*/{1, 1},
-                              /*constraints_are_known_satisfied=*/false,
                               /*compute_all_tile_offset_indexing_maps=*/true));
 
   EXPECT_THAT(*tiled_hlo_computation.GetRoot(),
@@ -899,11 +895,10 @@ ENTRY main {
   std::optional<SymbolicTileAnalysis> analysis = TryAnalyzeModule(module.get());
   ASSERT_TRUE(analysis.has_value());
 
-  TF_ASSERT_OK_AND_ASSIGN(
-      TiledHloComputation tiled_hlo_computation,
-      analysis->ComputeTiledHloInstructions(
-          /*tile_parameters=*/{1, 1}, /*constraints_are_known_satisfied=*/false,
-          /*compute_all_tile_offset_indexing_maps=*/true));
+  TF_ASSERT_OK_AND_ASSIGN(TiledHloComputation tiled_hlo_computation,
+                          analysis->ComputeTiledHloInstructions(
+                              /*tile_parameters=*/{1, 1},
+                              /*compute_all_tile_offset_indexing_maps=*/true));
 
   const TiledHloInstruction* dynamic_slice =
       tiled_hlo_computation.GetRoot()->operand(0);
