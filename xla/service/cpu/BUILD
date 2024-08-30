@@ -1414,6 +1414,7 @@ xla_cc_test(
     tags = ["not_run:arm"],
     deps = [
         ":cpu_instruction_fusion",
+        "//xla:literal_util",
         "//xla:shape_util",
         "//xla/hlo/ir:hlo",
         "//xla/hlo/utils:hlo_matchers",
@@ -1423,6 +1424,7 @@ xla_cc_test(
         "//xla/tests:xla_internal_test_main",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
+        "@com_google_googletest//:gtest_main",
         "@tsl//tsl/platform:statusor",
     ],
 )
@@ -1549,9 +1551,12 @@ xla_cc_test(
     srcs = ["conv_canonicalization_test.cc"],
     deps = [
         ":conv_canonicalization",
+        ":target_machine_features",
         ":target_machine_features_fake",
+        "//xla:array4d",
+        "//xla:literal_util",
+        "//xla:shape_util",
         "//xla:test",
-        "//xla:test_helpers",
         "//xla:util",
         "//xla/hlo/ir:hlo",
         "//xla/tests:hlo_test_base",
