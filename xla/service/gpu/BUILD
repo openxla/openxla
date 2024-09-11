@@ -1828,7 +1828,6 @@ xla_test(
         "gpu_a100",
     ],
     tags = [
-        "no_rocm",
         "nomsan",  # Pulls in precompiled NVIDIA libraries which cause false positives in msan.
     ],
     deps = [
@@ -1863,10 +1862,9 @@ xla_test(
         "ptx_compilation_test.cc",
     ],
     backends = [
-        "gpu",
+        "gpu_any",
     ],
     tags = [
-        "no_rocm",
         "nomsan",  # Pulls in precompiled NVIDIA libraries which cause false positives in msan.
     ],
     deps = [
