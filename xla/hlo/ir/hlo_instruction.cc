@@ -433,7 +433,7 @@ absl::StatusOr<std::unique_ptr<HloInstruction>> HloInstruction::CreateFromProto(
             comparison_direction,
             StringToComparisonDirection(proto.comparison_direction()));
       }
-      auto comparison_type_str = proto.comparison_type();
+      const auto& comparison_type_str = proto.comparison_type();
       if (!comparison_type_str.empty()) {
         // If a comparison type is specified, it *must* be valid.
         TF_ASSIGN_OR_RETURN(auto comparison_type,
