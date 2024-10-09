@@ -993,6 +993,24 @@ ENTRY e {
       [](const TritonGemmConfig& config) { return config.block_k > 16; }));
 }
 
+TEST_F(GemmFusionAutotunerExhaustiveTest, FailingConfigsDoNotAbortCompilation) {
+  CheckTritonAutotuning(R"(
+f {
+  a = f16[2048,2048] parameter(0)
+  b = f16[2048,2048] parameter(1)
+  ROOT c = f16[2048,2048] dot(a, b),
+    lhs_contracting_dims={1}, rhs_contracting_dims={0}
+}
+
+ENTRY e {
+  a = f16[2048,2048] parameter(0)
+  b = f16[2048,2048] parameter(1)
+  ROOT c = f16[2048,2048] fusion(a, b), kind=kCustom, calls=f,
+    backend_config={"fusion_backend_config": {kind: "__triton_gemm"}}
+})",
+                        "CHECK: block_m");
+}
+
 class GemmFusionAutotunerDisableSplitK : public GemmFusionAutotunerTest {
  public:
   DebugOptions GetDebugOptionsForTest() override {
