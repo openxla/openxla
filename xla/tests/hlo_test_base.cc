@@ -180,8 +180,8 @@ HloComputation* HloTestBase::AddEntryComputationAndUpdateEntryComputationLayout(
 }
 
 void HloTestBase::UpdateEntryComputationLayout(HloModule* module) {
-  xla::UpdateEntryComputationLayout(
-      module, test_runner_.device_shape_representation_fn());
+  xla::UpdateEntryComputationLayout(module,
+                                    runner_->device_shape_representation_fn());
 }
 
 absl::StatusOr<Literal> HloTestBase::Execute(
