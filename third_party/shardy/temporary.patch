@@ -1,3 +1,17 @@
+diff --git a/shardy/dialect/sdy/transforms/export/export_pipeline.cc b/shardy/dialect/sdy/transforms/export/export_pipeline.cc
+index 3c383c6..a225484 100644
+--- a/shardy/dialect/sdy/transforms/export/export_pipeline.cc
++++ b/shardy/dialect/sdy/transforms/export/export_pipeline.cc
+@@ -25,8 +25,8 @@ namespace sdy {
+ 
+ void addExportPipeline(OpPassManager& pm, StringRef dumpDirectory) {
+   pm.addPass(createRemoveShardingGroupsPass());
+-  pm.addNestedPass<func::FuncOp>(createShardingConstraintToReshardPass());
+   pm.addNestedPass<func::FuncOp>(createSinkDataFlowEdgesPass());
++  pm.addNestedPass<func::FuncOp>(createShardingConstraintToReshardPass());
+   pm.addNestedPass<func::FuncOp>(
+       createUpdateNonDivisibleInputOutputShardingsPass());
+   pm.addPass(mlir::sdy::createSaveModuleOpPass(dumpDirectory,
 diff --git a/third_party/llvm/generated.patch b/third_party/llvm/generated.patch
 index 509398d..babbda4 100644
 --- a/third_party/llvm/generated.patch
