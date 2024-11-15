@@ -2130,7 +2130,10 @@ MsaAlgorithm::GetInefficientAllocationSites(
     return {};
   }
 
-  int64_t size = allocation_values.at(0).size();
+  int64_t size = 0;
+  if (!allocation_values.empty()) {
+    size = allocation_values.at(0).size();
+  }
 
   if (VLOG_IS_ON(3)) {
     for (const AllocationValue& allocation_value : allocation_values) {
@@ -2475,6 +2478,9 @@ absl::StatusOr<AllocationResult> MsaAlgorithm::AllocateAllocationValues(
           definition_time_for_allocation_value.at(&allocation_value_to_update),
           RequiresNoCopyAlternateMemAllocation(allocation_value_to_update),
           all_use_times, entry.only_extend_existing_allocation);
+      if (options_.debugging_allocation_request_modifier_fn) {
+        options_.debugging_allocation_request_modifier_fn(request);
+      }
       // Bitcasts don't define buffers and don't directly consume buffers.
       // Skip allocating buffers for bitcast uses (unless they are the root
       // instruction). The uses that feed from bitcasts will be handled
@@ -2483,6 +2489,9 @@ absl::StatusOr<AllocationResult> MsaAlgorithm::AllocateAllocationValues(
           use.hlo_use.instruction ==
               use.hlo_use.instruction->parent()->root_instruction()) {
         result_mark(AllocateSegment(request), result);
+        if (options_.debugging_allocation_result_modifier_fn) {
+          options_.debugging_allocation_result_modifier_fn(request, result);
+        }
         if (request.require_copy_allocation) {
           auto allocation_sequence =
               allocation_value_to_update.mutable_allocation_sequence();
@@ -4378,10 +4387,6 @@ AllocationResult MsaAlgorithm::AllocateSegment(AllocationRequest& request) {
                    *use.instruction, use.operand_number, use.operand_index);
   }
 
-  if (request.only_extend_existing_allocation &&
-      !allocation_sequence->empty()) {
-    allocation_sequence->back()->Extend(request.inclusive_start_time);
-  }
   // There could be a requirement to pin this buffer to default memory either
   // because it is a parameter or an output.  If the buffer is a parameter, then
   // we're allowed to prefetch. If the use expects the output to be in default
