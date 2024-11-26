@@ -59,5 +59,9 @@ std::string LLVMTargetMachineFeatures::get_target_feature_string() const {
   return target_machine_->getTargetFeatureString().str();
 }
 
+std::string LLVMTargetMachineFeatures::get_target_feature_string() const {
+  return target_machine_->getTargetFeatureString().str();
+}
+
 }  // namespace cpu
 }  // namespace xla
