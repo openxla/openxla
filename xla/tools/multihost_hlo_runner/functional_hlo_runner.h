@@ -52,6 +52,8 @@ enum class InputFormat {
   kSnapshotProtoBinary,  // HloSnapshot protobuf binary format. Can be dumped by
                          // TensorFlow by setting the environment variable
                          // xla_dump_hlo_snapshots.
+  kInputSnapshotProtoBinary,
+  kInputSnapshotProtoText,
 };
 
 // Interface for profiler plugins. If being set in RunningOptions, profiling
@@ -223,7 +225,7 @@ class FunctionalHloRunner {
 
   struct HloModuleAndArguments {
     std::unique_ptr<HloModule> hlo_module;
-    std::vector<Literal> arguments;
+    std::vector<std::vector<Literal>> arguments;
   };
 
   struct ReplicasAndPartitions {
@@ -324,6 +326,11 @@ class FunctionalHloRunner {
 
   static absl::StatusOr<HloModuleAndArguments>
   ReadModuleFromSnapshotBinaryProtoFile(absl::string_view hlo_file);
+  static absl::StatusOr<HloModuleAndArguments>
+  ReadModuleFromInputSnapshotBinaryProtoFile(absl::string_view hlo_file);
+  static absl::StatusOr<HloModuleAndArguments>
+  ReadModuleFromInputSnapshotTextProtoFile(absl::string_view hlo_file);
+
   static absl::StatusOr<HloModuleAndArguments> LoadHloModuleAndArguments(
       absl::string_view hlo_file, InputFormat input_format);
 
