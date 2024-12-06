@@ -225,10 +225,11 @@ cc_library(
     deps = [
         ":logging",
         ":macros",
-        ":str_util",
         ":stringpiece",
         ":stringprintf",
         ":types",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:string_view",
         "@double_conversion//:double-conversion",
     ],
 )
@@ -241,11 +242,12 @@ cc_library(
         ":logging",
         ":mutex",
         ":scanner",
-        ":str_util",
         ":strcat",
         ":stringpiece",
         ":types",
         "@com_google_absl//absl/algorithm:container",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
     ],
     alwayslink = True,
 )
@@ -1117,6 +1119,7 @@ cc_library(
         ":macros",
         ":raw_coding",
         ":stringpiece",
+        ":tstring",
         ":types",
     ],
 )
@@ -1285,6 +1288,8 @@ tsl_cc_test(
         ":test",
         ":test_benchmark",
         ":test_main",
+        ":types",
+        "@com_google_absl//absl/strings:string_view",
     ],
 )
 
@@ -1576,6 +1581,8 @@ tsl_cc_test(
         ":stacktrace_handler",
         ":statusor",
         ":test",
+        ":types",
+        "//testing/base/public:gunit_main",
         "@com_google_absl//absl/base:log_severity",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -1592,20 +1599,10 @@ tsl_cc_test(
     ],
     deps = [
         ":env",
-        ":env_impl",
-        ":env_time",
-        ":logging",
         ":mutex",
-        ":net",
-        ":platform_port",
-        ":scanner",
-        ":str_util",
-        ":strcat",
-        ":stringpiece",
-        ":stringprintf",
         ":test",
         ":test_main",
-        ":types",
+        ":thread_annotations",
     ],
 )
 
@@ -1634,12 +1631,12 @@ tsl_cc_test(
     ],
     deps = [
         ":env",
-        ":env_impl",
         ":env_time",
         ":mutex",
         ":platform_port",
         ":test",
         ":test_main",
+        "@com_google_absl//absl/log",
     ],
 )
 
@@ -1721,6 +1718,8 @@ tsl_cc_test(
         ":numbers",
         ":test",
         ":test_main",
+        ":types",
+        "@com_google_absl//absl/strings:string_view",
     ],
 )
 
