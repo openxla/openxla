@@ -1445,17 +1445,6 @@ CpuCompiler::CompileLegacyCpuExecutable(std::unique_ptr<HloModule> module) {
   DumpHloModuleIfEnabled(*module, *assignment,
                          absl::StrCat("cpu_", kAfterOptimizationsDumpName));
 
-  // Dump computation proto state and buffer assignment for
-  // GetCompiledMemoryStats results.
-  auto with_hlo_proto = [&](std::unique_ptr<CpuExecutable> cpu_executable) {
-    auto hlo_proto = std::make_unique<HloProto>();
-    *hlo_proto->mutable_hlo_module() = cpu_executable->module().ToProto();
-    *hlo_proto->mutable_buffer_assignment() =
-        cpu_executable->buffer_assignment().ToProto();
-    cpu_executable->set_hlo_proto(std::move(hlo_proto));
-    return cpu_executable;
-  };
-
   TargetMachineFeatures target_machine_features(jit_compiler.target_machine());
 
   // TODO(ezhulenev): Once we fully migrate to Thunks current IrEmitter should
@@ -1621,7 +1610,7 @@ CpuCompiler::CompileLegacyCpuExecutable(std::unique_ptr<HloModule> module) {
       cpu_executable->set_ir_module_string(ir_module_string);
     }
 
-    return with_hlo_proto(std::move(cpu_executable));
+    return std::move(cpu_executable);
   }
 
   // Each computation is a single function.  Emit all embedded computations
@@ -1686,7 +1675,7 @@ CpuCompiler::CompileLegacyCpuExecutable(std::unique_ptr<HloModule> module) {
     cpu_executable->set_ir_module_string(ir_module_string);
   }
 
-  return with_hlo_proto(std::move(cpu_executable));
+  return std::move(cpu_executable);
 }
 
 absl::StatusOr<std::unique_ptr<Executable>> CpuCompiler::RunBackend(
