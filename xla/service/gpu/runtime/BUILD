@@ -94,6 +94,7 @@ cc_library(
         "//xla/stream_executor:stream_executor_h",
         "//xla/stream_executor:trace_command_buffer_factory",
         "//xla/stream_executor/gpu:gpu_blas_lt",
+        "//xla/runtime:buffer_use",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
