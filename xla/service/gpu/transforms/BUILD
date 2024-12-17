@@ -2947,6 +2947,7 @@ xla_test(
     deps = [
         ":sort_rewriter",
         "//xla:error_spec",
+        "//xla:shape_util",
         "//xla:xla_data_proto_cc",
         "//xla/hlo/ir:hlo",
         "//xla/hlo/testlib:pattern_matcher_gmock",
@@ -2954,6 +2955,7 @@ xla_test(
         "//xla/service/gpu:cublas_cudnn",
         "//xla/tests:hlo_test_base",
         "//xla/tests:xla_internal_test_main",  # fixdeps: keep
+        "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest",
         "@tsl//tsl/platform:statusor",
         "@tsl//tsl/platform:test",
