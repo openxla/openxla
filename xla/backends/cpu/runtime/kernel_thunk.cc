@@ -43,14 +43,15 @@ limitations under the License.
 #include "xla/backends/cpu/runtime/kernel.h"
 #include "xla/backends/cpu/runtime/kernel_c_api.h"
 #include "xla/backends/cpu/runtime/thunk.h"
+#include "xla/backends/cpu/runtime/thunk.pb.h"
 #include "xla/runtime/buffer_use.h"
 #include "xla/service/buffer_assignment.h"
 #include "xla/stream_executor/device_memory.h"
 #include "xla/stream_executor/launch_dim.h"
 #include "xla/tsl/concurrency/async_value_ref.h"
 #include "xla/tsl/platform/errors.h"
+#include "xla/tsl/platform/statusor.h"
 #include "xla/util.h"
-#include "tsl/platform/statusor.h"
 #include "tsl/profiler/lib/traceme.h"
 
 #define EIGEN_USE_THREADS
@@ -295,6 +296,31 @@ KernelThunk<num_arguments, num_results>::CheckInvariantBuffersMemory(
 template <int64_t num_arguments, int64_t num_results>
 Thunk::BufferUses KernelThunk<num_arguments, num_results>::buffer_uses() const {
   return KernelBufferUses(arguments_buffers_, results_buffers_);
+}
+
+template <int64_t num_arguments, int64_t num_results>
+absl::StatusOr<std::string>
+KernelThunk<num_arguments, num_results>::SerializeAsStringImpl() const {
+  KernelThunkProto proto;
+
+  proto.set_kernel_name(kernel_name_);
+  proto.mutable_thread_dim()->set_x(thread_dim_.x);
+  proto.mutable_thread_dim()->set_y(thread_dim_.y);
+  proto.mutable_thread_dim()->set_z(thread_dim_.z);
+  proto.set_min_alignment(min_alignment_.value());
+
+  for (const BufferAllocation::Slice& buffer : arguments_buffers_) {
+    TF_ASSIGN_OR_RETURN(const std::string slice_as_str,
+                        buffer.SerializeAsString());
+    proto.add_arguments_buffers()->ParseFromString(slice_as_str);
+  }
+
+  for (const BufferAllocation::Slice& buffer : results_buffers_) {
+    TF_ASSIGN_OR_RETURN(const std::string slice_as_str,
+                        buffer.SerializeAsString());
+    proto.add_results_buffers()->ParseFromString(slice_as_str);
+  }
+  return proto.SerializeAsString();
 }
 
 }  // namespace internal

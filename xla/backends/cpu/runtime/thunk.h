@@ -94,6 +94,8 @@ class Thunk {
     std::string op_name;
     std::string module_name;
     int64_t module_id;
+
+    absl::StatusOr<std::string> SerializeAsString() const;
   };
 
   using Task = std::function<void()>;
@@ -131,6 +133,8 @@ class Thunk {
 
   Kind kind() const { return kind_; }
   const Info& info() const { return info_; }
+
+  absl::StatusOr<std::string> SerializeAsString() const;
 
   static absl::string_view KindToString(Kind kind);
 
@@ -287,6 +291,7 @@ class Thunk {
       const ExecuteParams& params) = 0;
 
  protected:
+  virtual absl::StatusOr<std::string> SerializeAsStringImpl() const;
   // Encodes thunk info into the TraceMe compatible format.
   std::string TraceMeEncode() const;
 
@@ -336,6 +341,8 @@ class ThunkSequence : public std::vector<std::unique_ptr<Thunk>> {
   ResourceUses resource_uses() const;
 
   void Append(ThunkSequence other);
+
+  absl::StatusOr<std::string> SerializeAsString() const;
 
  private:
   explicit ThunkSequence(std::unique_ptr<Thunk> thunk);
