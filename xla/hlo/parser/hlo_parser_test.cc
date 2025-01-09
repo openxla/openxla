@@ -50,6 +50,7 @@ limitations under the License.
 #include "xla/shape.h"
 #include "xla/shape_util.h"
 #include "xla/tsl/lib/core/status_test_util.h"
+#include "xla/tsl/platform/statusor.h"
 #include "xla/window_util.h"
 #include "xla/xla_data.pb.h"
 #include "tsl/platform/errors.h"
@@ -3229,6 +3230,26 @@ ENTRY %ShortConstant.v4 () -> f32[67,89] {
   auto result = ParseAndReturnVerifiedModule(original);
   TF_EXPECT_OK(result.status());
   EXPECT_EQ(result.value()->ToString(HloPrintOptions()), original);
+}
+
+TEST_F(HloParserTest, ShortConstantIdempotent) {
+  const std::string original =
+      R"(HloModule ShortConstant_module, entry_computation_layout={()->f32[67,89]{1,0}}
+
+ENTRY %ShortConstant.v4 () -> f32[67,89] {
+  ROOT %constant.1 = f32[67,89]{1,0} constant({...})
+}
+
+)";
+  auto parse_and_get_root_literal =
+      [&](absl::string_view original) -> absl::StatusOr<Literal> {
+    TF_ASSIGN_OR_RETURN(auto module, ParseAndReturnVerifiedModule(original));
+    TF_RET_CHECK(module->entry_computation()->root_instruction()->IsConstant());
+    return module->entry_computation()->root_instruction()->literal().Clone();
+  };
+  TF_ASSERT_OK_AND_ASSIGN(auto literal1, parse_and_get_root_literal(original));
+  TF_ASSERT_OK_AND_ASSIGN(auto literal2, parse_and_get_root_literal(original));
+  EXPECT_TRUE(literal1.Equal(literal2, /*layout_sensitive=*/true));
 }
 
 TEST_F(HloParserTest, NegativeNan) {

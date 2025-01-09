@@ -678,6 +678,10 @@ class HloParserImpl : public HloParser {
   // Used to generate names for anonymous instructions.
   NameUniquer name_uniquer_{/*separator=*/"."};
 
+  // The data for the next literal to be parsed. This should be incremented on
+  // each use to decrease the chance of CSE.
+  uint32_t data_for_literal_ = 0;
+
   const HloParserOptions options_;
 };
 
@@ -4586,11 +4590,10 @@ bool HloParserImpl::ParseDenseLiteral(Literal* literal, const Shape& shape) {
         }
         elems_seen_per_dim[0] = shape.dimensions(0);
         lexer_.Lex();
-        // Fill data with deterministic (garbage) values. Use static to avoid
-        // creating identical constants which could potentially got CSE'ed
-        // away. This is a best-effort approach to make sure replaying a HLO
-        // gives us same optimized HLO graph.
-        static uint32_t data = 0;
+        // Fill data with deterministic (garbage) values. This field changes
+        // after each use to avoid creating identical constants which could
+        // potentially get CSE'ed away. This is a best-effort approach to make
+        // sure replaying a HLO gives us same optimized HLO graph.
 
         // According to the System V ABI not all 8 bit values are valid booleans
         // - only the values 0 and 1 are allowed. So to avoid undefined
@@ -4605,7 +4608,7 @@ bool HloParserImpl::ParseDenseLiteral(Literal* literal, const Shape& shape) {
 
         uint32_t* raw_data = static_cast<uint32_t*>(literal->untyped_data());
         for (int64_t i = 0; i < literal->size_bytes() / 4; ++i) {
-          raw_data[i] = data++ & mask;
+          raw_data[i] = data_for_literal_++ & mask;
         }
         uint8_t* raw_data_int8 = static_cast<uint8_t*>(literal->untyped_data());
         static uint8_t data_int8 = 0;
