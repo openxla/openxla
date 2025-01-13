@@ -391,6 +391,62 @@ TEST_F(FunctionalHloRunnerTest, CanCreateMockClientInPjRtEnv) {
   TF_EXPECT_OK(RunShardedHloWithClient(*env.client));
 }
 
+TEST_F(FunctionalHloRunnerTest, Sharded2DevicesHloUnoptimizedSnapshot) {
+  TF_ASSERT_OK_AND_ASSIGN(std::unique_ptr<xla::PjRtClient> client,
+                          GetPjRtClient());
+
+  constexpr int kRequiredDeviceCount = 2;
+  int device_count = client->device_count();
+  if (device_count < kRequiredDeviceCount) {
+    GTEST_SKIP() << "Requires " << kRequiredDeviceCount
+                 << " devices, but found only " << device_count;
+    return;
+  }
+
+  // Options corresponding to:
+  // --use_spmd_partitioning=true --num_replicas=1 --num_partitions=2
+  xla::DebugOptions debug_options;
+  FunctionalHloRunner::PreprocessingOptions preproc_options;
+  FunctionalHloRunner::RawCompileOptions raw_compile_options;
+  raw_compile_options.spmd_mode =
+      FunctionalHloRunner::SpmdMode::kUseSpmdPartitioning;
+  raw_compile_options.num_replicas = 1;
+  raw_compile_options.num_partitions = 2;
+  FunctionalHloRunner::RunningOptions running_options;
+
+  TF_EXPECT_OK(FunctionalHloRunner::LoadAndRunAndDump(
+      *client, debug_options, preproc_options, raw_compile_options,
+      running_options, {GetHloPath("sharded_input_snapshot.pbtxt")},
+      InputFormat::kInputSnapshotProtoText,
+      tsl::io::JoinPath(std::getenv("TEST_UNDECLARED_OUTPUTS_DIR"),
+                        "dump.txt")));
+  tsl::Env* env = tsl::Env::Default();
+  tsl::FileSystem* fs = nullptr;
+
+  std::vector<std::string> filenames;
+  TF_ASSERT_OK(fs->GetMatchingPaths(
+      tsl::io::JoinPath(std::getenv("TEST_UNDECLARED_OUTPUTS_DIR"), "dump.*"),
+      &filenames));
+
+  // The test is sharded, so we expect two dump files with the same result.
+  ASSERT_THAT(filenames, SizeIs(2));
+  std::string result;
+  std::string exp_result = R"(s64[8,1] {
+  {0},
+  {2},
+  {4},
+  {6},
+  {8},
+  {10},
+  {12},
+  {14}
+})";
+  for (const auto& filename : filenames) {
+    TF_ASSERT_OK(tsl::ReadFileToString(env, filename, &result));
+    CHECK_EQ(result, exp_result);
+  }
+}
+
 }  // namespace
 }  // namespace xla
 
