@@ -656,7 +656,7 @@ class CaseCmd : public CommandBufferCmd {
   BufferUseVector buffers() override;
 
  private:
-  BufferAllocation::Slice cond_alloc_slice_;
+  BufferAllocation::Slice index_;
   std::vector<CommandBufferCmdSequence> branches_commands_;
 };
 

@@ -88,12 +88,7 @@ limitations under the License.
 
 namespace xla::gpu {
 
-<<<<<<< HEAD
-using ExecutionScopeId = se::CommandBuffer::ExecutionScopeId;
-using MemoryAccess = BufferUse::MemoryAccess;
-=======
 using MemoryAccess = xla::BufferUse::MemoryAccess;
->>>>>>> 6edf990fb3 (Rewrite command buffer to track dependencies through data flow, removing execution scope)
 
 std::string CommandBufferCmdString(CommandBufferCmdType type) {
   switch (type) {
@@ -178,13 +173,7 @@ void CommandBufferCmdSequence::Append(std::unique_ptr<CommandBufferCmd> cmd) {
     allocs_indices_.insert(buffer.slice().index());
   }
 
-<<<<<<< HEAD
-  ExecutionStreamId execution_stream_id = cmd->execution_stream_id();
-  CommandBufferCmd::BufferUseVector buffers = cmd->buffers();
-  bool requires_barrier = HasConflicts(execution_stream_id, buffers);
-=======
   cmd->set_index(commands_.size());
->>>>>>> 6edf990fb3 (Rewrite command buffer to track dependencies through data flow, removing execution scope)
 
   for (auto it = commands_.rbegin(); it != commands_.rend(); ++it) {
     // Add dependency to the latest barrier command.
@@ -251,7 +240,7 @@ absl::Status CommandBufferCmdSequence::Prepare(
     const Thunk::PrepareParams& params,
     Thunk::ResourceRequestsInterface& resource_requests) {
   for (auto& command : commands_) {
-    TF_RETURN_IF_ERROR(command.cmd->Prepare(params, resource_requests));
+    TF_RETURN_IF_ERROR(command->Prepare(params, resource_requests));
   }
   return absl::OkStatus();
 }
@@ -547,20 +536,12 @@ absl::Status ComputationIdCmd::Record(
     }
 
     auto args = se::PackKernelArgs(/*shmem_bytes=*/0, int64_t{1}, value, dst);
-    return command_buffer->Launch(execution_scope_id, se::ThreadDim(1),
+    return command_buffer->Launch(index(), dependencies(), se::ThreadDim(1),
                                   se::BlockDim(1), *memset_kernel, *args);
   } else {
-    return command_buffer->Memset(execution_scope_id, &dst, value,
+    return command_buffer->Memset(index(), dependencies(), &dst, value,
                                   /*num_elements=*/1);
   }
-
-  auto args = se::PackKernelArgs(/*shmem_bytes=*/0, int64_t{1}, value, dst);
-  return command_buffer->Launch(index(), dependencies(), se::ThreadDim(1),
-                                se::BlockDim(1), *memset_kernel, *args);
-#else
-  return command_buffer->Memset(index(), dependencies(), &dst, value,
-                                /*num_elements=*/1);
-#endif  // GOOGLE_CUDA
 }
 
 //===----------------------------------------------------------------------===//
@@ -893,10 +874,10 @@ CommandBufferCmd::BufferUseVector IfElseCmd::buffers() {
 // CaseCmd
 //===----------------------------------------------------------------------===//
 
-CaseCmd::CaseCmd(BufferAllocation::Slice cond_alloc_slice,
+CaseCmd::CaseCmd(BufferAllocation::Slice index,
                  std::vector<CommandBufferCmdSequence> branches_commands)
     : CommandBufferCmd(CommandBufferCmdType::kCaseCmd),
-      cond_alloc_slice_(cond_alloc_slice),
+      index_(index),
       branches_commands_(std::move(branches_commands)) {}
 
 absl::Status CaseCmd::Initialize(const Thunk::InitializeParams& params,
@@ -911,10 +892,10 @@ absl::Status CaseCmd::Record(const Thunk::ExecuteParams& execute_params,
                              const RecordParams& record_params,
                              se::CommandBuffer* command_buffer) {
   se::DeviceMemoryBase cond_memory_base =
-      execute_params.buffer_allocations->GetDeviceAddress(cond_alloc_slice_);
+      execute_params.buffer_allocations->GetDeviceAddress(index_);
 
-  VLOG(5) << "CaseCmd, index: " << cond_alloc_slice_ << " ("
-          << cond_memory_base.opaque() << ")";
+  VLOG(5) << "CaseCmd, index: " << index_ << " (" << cond_memory_base.opaque()
+          << ")";
 
   return command_buffer->Case(index(), dependencies(),
                               se::DeviceMemory<int32_t>(cond_memory_base),
@@ -1341,9 +1322,7 @@ absl::Status CustomCallCmd::RecordLegacyCustomCall(
     const RecordParams& record_params, se::CommandBuffer* command_buffer) {
   std::vector<void*> buffers;
   buffers.reserve(operands_.size() + results_.size());
-  ExecutionScopeId execution_scope_id = GetExecutionScope(record_params);
-  VLOG(5) << "CustomCallCmd: target_name=" << target_name_
-          << ", execution_scope_id=" << execution_scope_id.value();
+  VLOG(5) << "CustomCallCmd: target_name=" << target_name_;
   TF_RETURN_IF_ERROR(
       GetBuffers(execute_params, operands_, buffers, "  Operand "));
   TF_RETURN_IF_ERROR(
