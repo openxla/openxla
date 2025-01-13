@@ -55,7 +55,6 @@ class Stream;
 // command index to node dependencies in the implementation.
 class CommandBuffer {
  public:
-
   using Index = int64_t;
   using CmdIndexSet = absl::flat_hash_set<Index>;
   static std::string CmdIndexSetToString(const CmdIndexSet& index_set) {
