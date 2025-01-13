@@ -26,6 +26,7 @@ limitations under the License.
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "xla/backends/cpu/runtime/thunk.h"
+#include "xla/backends/cpu/runtime/thunk.pb.h"
 #include "xla/ffi/call_frame.h"
 #include "xla/ffi/execution_state.h"
 #include "xla/service/buffer_assignment.h"
@@ -52,9 +53,15 @@ class CustomCallThunk final : public Thunk {
       Info info, absl::string_view target_name, OpBuffers op_buffers,
       absl::string_view backend_config, CustomCallApiVersion api_version);
 
+  static absl::StatusOr<std::unique_ptr<CustomCallThunk>> FromProto(
+      const ThunkProto& proto, const BufferAssignment& buffer_assignment);
+
   tsl::AsyncValueRef<ExecuteEvent> Execute(const ExecuteParams& params) final;
 
   BufferUses buffer_uses() const final;
+
+ protected:
+  absl::StatusOr<std::string> SerializeAsStringImpl() const final;
 
  private:
   CustomCallThunk(Info info, absl::string_view target_name,

@@ -19,22 +19,26 @@ limitations under the License.
 #include <functional>
 #include <memory>
 #include <optional>
+#include <string>
 #include <utility>
 
 #include "absl/base/optimization.h"
+#include "absl/log/check.h"
+#include "absl/log/log.h"
 #include "absl/memory/memory.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "xla/backends/cpu/runtime/buffer_allocations.h"
 #include "xla/backends/cpu/runtime/thunk.h"
+#include "xla/backends/cpu/runtime/thunk.pb.h"
 #include "xla/backends/cpu/runtime/thunk_executor.h"
 #include "xla/runtime/buffer_use.h"
 #include "xla/service/buffer_assignment.h"
 #include "xla/stream_executor/device_memory.h"
 #include "xla/tsl/concurrency/async_value_ref.h"
-#include "tsl/platform/logging.h"
-#include "tsl/platform/statusor.h"
+#include "xla/tsl/platform/statusor.h"
 #include "tsl/profiler/lib/traceme.h"
 
 namespace xla::cpu {
@@ -49,6 +53,20 @@ absl::StatusOr<std::unique_ptr<WhileThunk>> WhileThunk::Create(
   return absl::WrapUnique(new WhileThunk(std::move(info), cond_buffer,
                                          std::move(cond_executor),
                                          std::move(body_executor), trip_count));
+}
+
+absl::StatusOr<std::unique_ptr<WhileThunk>> WhileThunk::FromProto(
+    const ThunkProto& proto, const BufferAssignment& buffer_assignment,
+    ThunkSequence cond_sequence, ThunkSequence body_sequence) {
+  TF_ASSIGN_OR_RETURN(Thunk::Info info, Thunk::Info::FromProto(proto.info()));
+
+  TF_ASSIGN_OR_RETURN(
+      BufferAllocation::Slice cond_buffer,
+      DeserializeSliceFromProto(proto.while_thunk().cond_buffer(),
+                                buffer_assignment));
+
+  return Create(std::move(info), cond_buffer, std::move(cond_sequence),
+                std::move(body_sequence), proto.while_thunk().trip_count());
 }
 
 WhileThunk::WhileThunk(Info info, BufferAllocation::Slice cond_buffer,
@@ -84,6 +102,26 @@ tsl::AsyncValueRef<Thunk::ExecuteEvent> WhileThunk::Execute(
 
   bool* condition = reinterpret_cast<bool*>(cond_data.opaque());
   return ExecuteWhileLoop(params, condition);
+}
+
+absl::StatusOr<std::string> WhileThunk::SerializeAsStringImpl() const {
+  WhileThunkProto proto;
+  proto.set_trip_count(trip_count_.value());
+
+  TF_ASSIGN_OR_RETURN(std::string cond_sequence_str,
+                      cond_executor_.thunk_sequence().SerializeAsString());
+
+  proto.mutable_cond_sequence()->ParseFromString(cond_sequence_str);
+
+  TF_ASSIGN_OR_RETURN(std::string body_sequence_str,
+                      body_executor_.thunk_sequence().SerializeAsString());
+
+  proto.mutable_body_sequence()->ParseFromString(body_sequence_str);
+
+  TF_ASSIGN_OR_RETURN(std::string cond_buffer_str,
+                      cond_buffer_.SerializeAsString());
+  proto.mutable_cond_buffer()->ParseFromString(cond_buffer_str);
+  return proto.SerializeAsString();
 }
 
 tsl::AsyncValueRef<WhileThunk::ExecuteEvent> WhileThunk::ExecuteForLoop(

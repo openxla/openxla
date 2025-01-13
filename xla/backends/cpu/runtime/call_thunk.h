@@ -20,6 +20,7 @@ limitations under the License.
 
 #include "absl/status/statusor.h"
 #include "xla/backends/cpu/runtime/thunk.h"
+#include "xla/backends/cpu/runtime/thunk.pb.h"
 #include "xla/backends/cpu/runtime/thunk_executor.h"
 #include "xla/tsl/concurrency/async_value_ref.h"
 
@@ -32,10 +33,17 @@ class CallThunk final : public Thunk {
   static absl::StatusOr<std::unique_ptr<CallThunk>> Create(
       Info info, ThunkSequence called_sequence);
 
+  static absl::StatusOr<std::unique_ptr<CallThunk>> FromProto(
+      const ThunkProto& proto, const BufferAssignment& buffer_assignment,
+      ThunkSequence called_sequence);
+
   tsl::AsyncValueRef<ExecuteEvent> Execute(const ExecuteParams& params) final;
 
   BufferUses buffer_uses() const final;
   ResourceUses resource_uses() const final;
+
+ protected:
+  absl::StatusOr<std::string> SerializeAsStringImpl() const final;
 
  private:
   CallThunk(Info info, ThunkExecutor called_executor);

@@ -24,6 +24,7 @@ limitations under the License.
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xla/backends/cpu/runtime/collective_thunk.h"
+#include "xla/backends/cpu/runtime/thunk.pb.h"
 #include "xla/tsl/concurrency/async_value_ref.h"
 #include "xla/xla_data.pb.h"
 
@@ -38,7 +39,13 @@ class CollectivePermuteThunk final : public CollectiveThunk {
       OpResources op_resources,
       absl::Span<const SourceTargetPair> source_target_pairs);
 
+  static absl::StatusOr<std::unique_ptr<CollectivePermuteThunk>> FromProto(
+      const ThunkProto& proto, const BufferAssignment& buffer_assignment);
+
   tsl::AsyncValueRef<ExecuteEvent> Execute(const ExecuteParams& params) final;
+
+ protected:
+  absl::StatusOr<std::string> SerializeAsStringCollectiveImpl() const final;
 
  private:
   CollectivePermuteThunk(

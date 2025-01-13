@@ -31,14 +31,15 @@ limitations under the License.
 #include "absl/types/span.h"
 #include "xla/backends/cpu/runtime/dot_lib.h"
 #include "xla/backends/cpu/runtime/thunk.h"
+#include "xla/backends/cpu/runtime/thunk.pb.h"
 #include "xla/backends/cpu/runtime/xnnpack/xnn_fusion_thunk.h"
 #include "xla/backends/cpu/runtime/xnnpack/xnn_interop.h"
 #include "xla/service/buffer_assignment.h"
 #include "xla/shape.h"
 #include "xla/tsl/platform/errors.h"
 #include "xla/tsl/platform/logging.h"
+#include "xla/tsl/platform/statusor.h"
 #include "xla/xla_data.pb.h"
-#include "tsl/platform/statusor.h"
 
 namespace xla::cpu {
 
@@ -120,6 +121,48 @@ absl::StatusOr<std::unique_ptr<XnnDotThunk>> XnnDotThunk::Create(
   return absl::WrapUnique(
       new XnnDotThunk(info, std::move(dot_dimensions), std::move(dot_slices),
                       std::move(dot_shape), std::move(dot_canonical_dims)));
+}
+
+absl::StatusOr<std::unique_ptr<XnnDotThunk>> XnnDotThunk::FromProto(
+    const ThunkProto& proto, const BufferAssignment& buffer_assignment) {
+  TF_ASSIGN_OR_RETURN(Thunk::Info info, Thunk::Info::FromProto(proto.info()));
+
+  TF_ASSIGN_OR_RETURN(
+      (auto [lhs_buffer, lhs_shape]),
+      DeserializeSliceShapeFromProto(
+          proto.xnn_fusion_thunk().xnn_dot_thunk().lhs_buffer_shape(),
+          buffer_assignment));
+
+  TF_ASSIGN_OR_RETURN(
+      (auto [rhs_buffer, rhs_shape]),
+      DeserializeSliceShapeFromProto(
+          proto.xnn_fusion_thunk().xnn_dot_thunk().rhs_buffer_shape(),
+          buffer_assignment));
+  TF_ASSIGN_OR_RETURN(
+      (auto [out_buffer, out_shape]),
+      DeserializeSliceShapeFromProto(
+          proto.xnn_fusion_thunk().xnn_dot_thunk().out_buffer_shape(),
+          buffer_assignment));
+
+  return Create(std::move(info),
+                proto.xnn_fusion_thunk().xnn_dot_thunk().dot_dimensions(),
+                lhs_buffer, lhs_shape, rhs_buffer, rhs_shape, out_buffer,
+                out_shape);
+}
+
+absl::StatusOr<std::string> XnnDotThunk::SerializeAsStringImpl() const {
+  XnnDotThunkProto proto;
+  *proto.mutable_dot_dimensions() = dot_dimensions_;
+  TF_RETURN_IF_ERROR(SerializeSliceShapeIntoProto(
+      dot_slices_.lhs_buffer, dot_slices_.lhs_shape,
+      proto.mutable_lhs_buffer_shape()));
+  TF_RETURN_IF_ERROR(SerializeSliceShapeIntoProto(
+      dot_slices_.rhs_buffer, dot_slices_.rhs_shape,
+      proto.mutable_rhs_buffer_shape()));
+  TF_RETURN_IF_ERROR(SerializeSliceShapeIntoProto(
+      dot_slices_.out_buffer, dot_slices_.out_shape,
+      proto.mutable_out_buffer_shape()));
+  return proto.SerializeAsString();
 }
 
 static std::vector<XnnFusionThunk::Argument> DotArguments(

@@ -37,6 +37,7 @@ limitations under the License.
 #include "xla/backends/cpu/runtime/kernel.h"
 #include "xla/backends/cpu/runtime/kernel_c_api.h"
 #include "xla/backends/cpu/runtime/thunk.h"
+#include "xla/backends/cpu/runtime/thunk.pb.h"
 #include "xla/service/buffer_assignment.h"
 #include "xla/stream_executor/launch_dim.h"
 #include "xla/tsl/concurrency/async_value_ref.h"
@@ -142,6 +143,9 @@ class SmallKernelThunk final
 
   tsl::AsyncValueRef<Thunk::ExecuteEvent> Execute(
       const Thunk::ExecuteParams& params) final;
+
+ protected:
+  absl::StatusOr<std::string> SerializeAsStringImpl() const final;
 };
 
 // Kernel thunk specialization for dynamic number of arguments and results.
@@ -163,8 +167,14 @@ class KernelThunk final : public internal::KernelThunk<> {
       Thunk::Info info, std::unique_ptr<LlvmIrKernelSpec> kernel_spec,
       std::optional<uint64_t> min_alignment);
 
+  static absl::StatusOr<std::unique_ptr<Thunk>> FromProto(
+      const ThunkProto& proto, const BufferAssignment& buffer_assignment);
+
   tsl::AsyncValueRef<Thunk::ExecuteEvent> Execute(
       const Thunk::ExecuteParams& params) final;
+
+ protected:
+  absl::StatusOr<std::string> SerializeAsStringImpl() const final;
 };
 
 }  // namespace xla::cpu

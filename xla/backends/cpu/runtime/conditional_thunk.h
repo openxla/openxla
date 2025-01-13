@@ -33,10 +33,17 @@ class ConditionalThunk final : public Thunk {
       Info info, BufferAllocation::Slice branch_index_buffer,
       std::vector<ThunkSequence> branch_sequences);
 
+  static absl::StatusOr<std::unique_ptr<ConditionalThunk>> FromProto(
+      const ThunkProto& proto, const BufferAssignment& buffer_assignment,
+      std::vector<ThunkSequence> branch_sequences);
+
   tsl::AsyncValueRef<ExecuteEvent> Execute(const ExecuteParams& params) final;
 
   BufferUses buffer_uses() const final;
   ResourceUses resource_uses() const final;
+
+ protected:
+  absl::StatusOr<std::string> SerializeAsStringImpl() const final;
 
  private:
   ConditionalThunk(Info info, BufferAllocation::Slice branch_index_buffer,

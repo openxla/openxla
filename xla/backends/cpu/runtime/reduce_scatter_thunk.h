@@ -20,6 +20,7 @@ limitations under the License.
 
 #include "absl/status/statusor.h"
 #include "xla/backends/cpu/runtime/collective_thunk.h"
+#include "xla/backends/cpu/runtime/thunk.pb.h"
 #include "xla/service/collective_ops_utils.h"
 #include "xla/tsl/concurrency/async_value_ref.h"
 #include "xla/xla_data.pb.h"
@@ -32,7 +33,13 @@ class ReduceScatterThunk final : public CollectiveThunk {
       Info info, ReductionKind reduction_kind, OpParams op_params,
       OpBuffers op_buffers, OpResources op_resources);
 
+  static absl::StatusOr<std::unique_ptr<ReduceScatterThunk>> FromProto(
+      const ThunkProto& proto, const BufferAssignment& buffer_assignment);
+
   tsl::AsyncValueRef<ExecuteEvent> Execute(const ExecuteParams& params) final;
+
+ protected:
+  absl::StatusOr<std::string> SerializeAsStringCollectiveImpl() const final;
 
  private:
   ReduceScatterThunk(Info info, ReductionKind reduction_kind,

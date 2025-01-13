@@ -18,6 +18,7 @@ limitations under the License.
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <string>
 #include <utility>
 
 #include "absl/container/inlined_vector.h"
@@ -27,9 +28,12 @@ limitations under the License.
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/string_view.h"
 #include "xla/backends/cpu/collectives/cpu_collectives.h"
 #include "xla/backends/cpu/runtime/collective_thunk.h"
+#include "xla/backends/cpu/runtime/collective_thunk.pb.h"
 #include "xla/backends/cpu/runtime/thunk.h"
+#include "xla/core/collectives/communicator.h"
 #include "xla/primitive_util.h"
 #include "xla/service/buffer_assignment.h"
 #include "xla/service/collective_ops_utils.h"
@@ -37,8 +41,8 @@ limitations under the License.
 #include "xla/shape_util.h"
 #include "xla/tsl/concurrency/async_value_ref.h"
 #include "xla/tsl/platform/errors.h"
+#include "xla/tsl/platform/statusor.h"
 #include "xla/util.h"
-#include "tsl/platform/statusor.h"
 #include "tsl/profiler/lib/traceme.h"
 
 namespace xla::cpu {
@@ -113,6 +117,37 @@ tsl::AsyncValueRef<AllReduceThunk::ExecuteEvent> AllReduceThunk::Execute(
       });
 
   return OkExecuteEvent();
+}
+
+absl::StatusOr<std::unique_ptr<AllReduceThunk>> AllReduceThunk::FromProto(
+    const ThunkProto& proto, const BufferAssignment& buffer_assignment) {
+  TF_ASSIGN_OR_RETURN(Thunk::Info info, Thunk::Info::FromProto(proto.info()));
+
+  TF_ASSIGN_OR_RETURN((auto [op_params, op_buffers, op_resources]),
+                      GetCollectiveThunkParamsFromProto(
+                          proto.collective_thunk(), buffer_assignment));
+
+  TF_ASSIGN_OR_RETURN(
+      ReductionKind reduction_kind,
+      StringToReductionKind(
+          proto.collective_thunk().all_reduce_thunk().reduction_kind()));
+
+  return AllReduceThunk::Create(
+      info, reduction_kind, op_params, op_buffers, op_resources,
+      proto.collective_thunk().all_reduce_thunk().single_replica());
+}
+
+absl::StatusOr<std::string> AllReduceThunk::SerializeAsStringCollectiveImpl()
+    const {
+  AllReduceThunkProto proto;
+  absl::string_view reduction_kind_as_string_view =
+      ReductionKindToString(reduction_kind_);
+  std::string reduction_kind_as_string(reduction_kind_as_string_view.begin(),
+                                       reduction_kind_as_string_view.end());
+  proto.set_reduction_kind(reduction_kind_as_string);
+  proto.set_single_replica(single_replica_);
+
+  return proto.SerializeAsString();
 }
 
 }  // namespace xla::cpu

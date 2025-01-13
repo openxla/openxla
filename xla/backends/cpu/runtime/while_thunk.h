@@ -19,6 +19,7 @@ limitations under the License.
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
 
 #include "absl/status/statusor.h"
 #include "xla/backends/cpu/runtime/thunk.h"
@@ -42,10 +43,17 @@ class WhileThunk final : public Thunk {
       ThunkSequence cond_sequence, ThunkSequence body_sequence,
       std::optional<int64_t> trip_count = std::nullopt);
 
+  static absl::StatusOr<std::unique_ptr<WhileThunk>> FromProto(
+      const ThunkProto& proto, const BufferAssignment& buffer_assignment,
+      ThunkSequence cond_sequence, ThunkSequence body_sequence);
+
   tsl::AsyncValueRef<ExecuteEvent> Execute(const ExecuteParams& params) final;
 
   BufferUses buffer_uses() const final;
   ResourceUses resource_uses() const final;
+
+ protected:
+  absl::StatusOr<std::string> SerializeAsStringImpl() const final;
 
  private:
   WhileThunk(Info info, BufferAllocation::Slice cond_buffer,

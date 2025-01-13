@@ -26,16 +26,17 @@ limitations under the License.
 #include <utility>
 #include <vector>
 
-#include "absl/container/inlined_vector.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "xla/backends/cpu/collectives/cpu_collectives.h"
 #include "xla/backends/cpu/runtime/buffer_allocations.h"
 #include "xla/backends/cpu/runtime/function_library.h"
 #include "xla/backends/cpu/runtime/resource_use.h"
+#include "xla/backends/cpu/runtime/thunk.pb.h"
 #include "xla/executable_run_options.h"
 #include "xla/ffi/execution_context.h"
 #include "xla/runtime/buffer_use.h"
+#include "xla/service/buffer_assignment.h"
 #include "xla/service/cpu/xfeed_manager.h"
 #include "xla/service/global_device_id.h"
 #include "xla/tsl/concurrency/async_value_ref.h"
@@ -66,6 +67,7 @@ namespace xla::cpu {
 class Thunk {
  public:
   enum class Kind {
+    kUnknown,
     kAllGather,
     kAllReduce,
     kAllToAll,
@@ -94,6 +96,9 @@ class Thunk {
     std::string op_name;
     std::string module_name;
     int64_t module_id;
+
+    absl::StatusOr<std::string> SerializeAsString() const;
+    static absl::StatusOr<Info> FromProto(const InfoProto& proto);
   };
 
   using Task = std::function<void()>;
@@ -132,7 +137,11 @@ class Thunk {
   Kind kind() const { return kind_; }
   const Info& info() const { return info_; }
 
+  absl::StatusOr<std::string> SerializeAsString() const;
+
   static absl::string_view KindToString(Kind kind);
+
+  static Kind ProtoThunkToThunkKind(const ThunkProto& proto);
 
   // Returns the list of buffers used by a thunk. Thunk executor relies on this
   // information to execute thunks concurrently and to avoid data races.
@@ -287,6 +296,7 @@ class Thunk {
       const ExecuteParams& params) = 0;
 
  protected:
+  virtual absl::StatusOr<std::string> SerializeAsStringImpl() const;
   // Encodes thunk info into the TraceMe compatible format.
   std::string TraceMeEncode() const;
 
@@ -336,6 +346,8 @@ class ThunkSequence : public std::vector<std::unique_ptr<Thunk>> {
   ResourceUses resource_uses() const;
 
   void Append(ThunkSequence other);
+
+  absl::StatusOr<std::string> SerializeAsString() const;
 
  private:
   explicit ThunkSequence(std::unique_ptr<Thunk> thunk);

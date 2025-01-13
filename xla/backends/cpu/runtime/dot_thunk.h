@@ -46,9 +46,15 @@ class DotThunk final : public Thunk {
       BufferAllocation::Slice rhs_buffer, Shape rhs_shape,
       BufferAllocation::Slice out_buffer, Shape out_shape);
 
+  static absl::StatusOr<std::unique_ptr<DotThunk>> FromProto(
+      const ThunkProto& proto, const BufferAssignment& buffer_assignment);
+
   tsl::AsyncValueRef<ExecuteEvent> Execute(const ExecuteParams& params) final;
 
   BufferUses buffer_uses() const final { return DotBufferUses(dot_slices_); }
+
+ protected:
+  absl::StatusOr<std::string> SerializeAsStringImpl() const final;
 
  private:
   DotThunk(Info info, DotDimensionNumbers dot_dimensions, DotSlices dot_slices,

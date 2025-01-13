@@ -16,6 +16,7 @@ limitations under the License.
 #include "xla/backends/cpu/runtime/all_to_all_thunk.h"
 
 #include <memory>
+#include <string>
 #include <utility>
 
 #include "absl/container/inlined_vector.h"
@@ -25,7 +26,10 @@ limitations under the License.
 #include "absl/strings/str_format.h"
 #include "xla/backends/cpu/collectives/cpu_collectives.h"
 #include "xla/backends/cpu/runtime/collective_thunk.h"
+#include "xla/backends/cpu/runtime/collective_thunk.pb.h"
 #include "xla/backends/cpu/runtime/thunk.h"
+#include "xla/backends/cpu/runtime/thunk.pb.h"
+#include "xla/core/collectives/communicator.h"
 #include "xla/service/buffer_assignment.h"
 #include "xla/service/collective_ops_utils.h"
 #include "xla/shape.h"
@@ -33,7 +37,7 @@ limitations under the License.
 #include "xla/tsl/concurrency/async_value_ref.h"
 #include "xla/tsl/platform/errors.h"
 #include "xla/tsl/platform/logging.h"
-#include "tsl/platform/statusor.h"
+#include "xla/tsl/platform/statusor.h"
 #include "tsl/profiler/lib/traceme.h"
 
 namespace xla::cpu {
@@ -44,6 +48,15 @@ absl::StatusOr<std::unique_ptr<AllToAllThunk>> AllToAllThunk::Create(
   return absl::WrapUnique(
       new AllToAllThunk(std::move(info), std::move(op_params),
                         std::move(op_buffers), std::move(op_resources)));
+}
+
+absl::StatusOr<std::unique_ptr<AllToAllThunk>> AllToAllThunk::FromProto(
+    const ThunkProto& proto, const BufferAssignment& buffer_assignment) {
+  TF_ASSIGN_OR_RETURN(Thunk::Info info, Thunk::Info::FromProto(proto.info()));
+  TF_ASSIGN_OR_RETURN((auto [op_params, op_buffers, op_resources]),
+                      GetCollectiveThunkParamsFromProto(
+                          proto.collective_thunk(), buffer_assignment));
+  return AllToAllThunk::Create(info, op_params, op_buffers, op_resources);
 }
 
 AllToAllThunk::AllToAllThunk(Info info, OpParams op_params,
@@ -85,6 +98,12 @@ tsl::AsyncValueRef<AllToAllThunk::ExecuteEvent> AllToAllThunk::Execute(
 
         return absl::OkStatus();
       });
+}
+
+absl::StatusOr<std::string> AllToAllThunk::SerializeAsStringCollectiveImpl()
+    const {
+  AllToAllThunkProto proto;
+  return proto.SerializeAsString();
 }
 
 }  // namespace xla::cpu

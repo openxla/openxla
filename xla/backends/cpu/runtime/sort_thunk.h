@@ -54,6 +54,9 @@ class SortThunk final : public Thunk {
       bool is_stable, LessThan less_than,
       std::optional<SortDirection> direction);
 
+  static absl::StatusOr<std::unique_ptr<SortThunk>> FromProto(
+      const ThunkProto& proto, const BufferAssignment& buffer_assignment);
+
   static absl::StatusOr<std::unique_ptr<SortThunk>> Create(
       Info info, absl::Span<const Input> inputs, int64_t dimension,
       bool is_stable, std::string comparator_name,
@@ -62,6 +65,9 @@ class SortThunk final : public Thunk {
   tsl::AsyncValueRef<ExecuteEvent> Execute(const ExecuteParams& params) final;
 
   BufferUses buffer_uses() const final;
+
+ protected:
+  absl::StatusOr<std::string> SerializeAsStringImpl() const final;
 
  private:
   SortThunk(Info info, absl::Span<const Input> inputs, int64_t dimension,

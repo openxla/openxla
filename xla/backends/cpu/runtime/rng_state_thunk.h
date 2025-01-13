@@ -24,6 +24,7 @@ limitations under the License.
 #include "absl/status/statusor.h"
 #include "absl/synchronization/mutex.h"
 #include "xla/backends/cpu/runtime/thunk.h"
+#include "xla/backends/cpu/runtime/thunk.pb.h"
 #include "xla/runtime/buffer_use.h"
 #include "xla/service/buffer_assignment.h"
 
@@ -37,11 +38,17 @@ class RngGetAndUpdateStateThunk final : public Thunk {
   static absl::StatusOr<std::unique_ptr<RngGetAndUpdateStateThunk>> Create(
       Info info, BufferAllocation::Slice state_buffer, int64_t delta);
 
+  static absl::StatusOr<std::unique_ptr<RngGetAndUpdateStateThunk>> FromProto(
+      const ThunkProto& proto, const BufferAssignment& buffer_assignment);
+
   tsl::AsyncValueRef<ExecuteEvent> Execute(const ExecuteParams& params) final;
 
   BufferUses buffer_uses() const final {
     return {{state_buffer_, BufferUse::kWrite}};
   }
+
+ protected:
+  absl::StatusOr<std::string> SerializeAsStringImpl() const final;
 
  private:
   RngGetAndUpdateStateThunk(Info info, BufferAllocation::Slice state_buffer,

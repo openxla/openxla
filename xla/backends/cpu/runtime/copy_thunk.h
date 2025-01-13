@@ -44,11 +44,17 @@ class CopyThunk final : public Thunk {
       Info info, BufferAllocation::Slice src_buffer, const Shape& src_shape,
       BufferAllocation::Slice dst_buffer, const Shape& dst_shape);
 
+  static absl::StatusOr<std::unique_ptr<CopyThunk>> FromProto(
+      const ThunkProto& proto, const BufferAssignment& buffer_assignment);
+
   tsl::AsyncValueRef<ExecuteEvent> Execute(const ExecuteParams& params) final;
 
   BufferUses buffer_uses() const final {
     return {{src_buffer_, BufferUse::kRead}, {dst_buffer_, BufferUse::kWrite}};
   }
+
+ protected:
+  absl::StatusOr<std::string> SerializeAsStringImpl() const final;
 
  private:
   CopyThunk(Info info, BufferAllocation::Slice src_buffer,

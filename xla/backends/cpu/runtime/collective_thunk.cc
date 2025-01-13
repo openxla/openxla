@@ -21,11 +21,13 @@ limitations under the License.
 #include <memory>
 #include <optional>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
 #include "absl/algorithm/container.h"
 #include "absl/container/inlined_vector.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -35,8 +37,10 @@ limitations under the License.
 #include "xla/backends/cpu/collectives/cpu_clique_key.h"
 #include "xla/backends/cpu/collectives/cpu_cliques.h"
 #include "xla/backends/cpu/collectives/cpu_collectives.h"
+#include "xla/backends/cpu/runtime/collective_thunk.pb.h"
 #include "xla/backends/cpu/runtime/resource_use.h"
 #include "xla/backends/cpu/runtime/thunk.h"
+#include "xla/backends/cpu/runtime/thunk.pb.h"
 #include "xla/core/collectives/communicator.h"
 #include "xla/core/collectives/rank_id.h"
 #include "xla/runtime/buffer_use.h"
@@ -44,6 +48,7 @@ limitations under the License.
 #include "xla/service/collective_ops_utils.h"
 #include "xla/service/computation_placer.h"
 #include "xla/service/global_device_id.h"
+#include "xla/service/hlo.pb.h"
 #include "xla/shape.h"
 #include "xla/status_macros.h"
 #include "xla/stream_executor/device_memory.h"
@@ -74,6 +79,131 @@ Thunk::BufferUses CollectiveThunk::buffer_uses() const {
     uses.push_back(BufferUse::Write(destination_buffer));
   }
   return uses;
+}
+
+absl::StatusOr<std::string> CollectiveThunk::OpParams::SerializeAsString()
+    const {
+  OpParamsProto proto;
+  proto.set_has_channel_id(has_channel_id);
+  proto.set_use_global_device_ids(
+      use_global_device_ids.value());  // TODO(basioli) optional
+  proto.set_op_id(op_id);
+  for (const auto& group : group) {
+    ReplicaGroup* replica_group = proto.add_replica_group();
+    for (const auto& device : group.replica_ids()) {
+      replica_group->add_replica_ids(device);
+    }
+  }
+  return proto.SerializeAsString();
+}
+
+absl::StatusOr<CollectiveThunk::OpParams> CollectiveThunk::OpParams::FromProto(
+    const OpParamsProto& proto) {
+  OpParams op_params;
+  op_params.has_channel_id = proto.has_channel_id();
+  op_params.use_global_device_ids = proto.use_global_device_ids();
+  op_params.op_id = proto.op_id();
+  for (const auto& replica_group : proto.replica_group()) {
+    ReplicaGroup group;
+    for (const auto& replica_id : replica_group.replica_ids()) {
+      group.add_replica_ids(replica_id);
+    }
+    op_params.group.push_back(group);
+  }
+  return op_params;
+}
+
+absl::StatusOr<std::string> CollectiveThunk::OpResources::SerializeAsString()
+    const {
+  OpResourcesProto proto;
+  // TODO(basioli) pointer -> optional?
+  const auto& communicator_resource_str =
+      communicator_resource->ToProto().SerializeAsString();
+  proto.mutable_communicator_resource()->ParseFromString(
+      communicator_resource_str);
+  return proto.SerializeAsString();
+}
+
+absl::StatusOr<std::string> CollectiveThunk::SerializeAsStringImpl() const {
+  CollectiveThunkProto proto;
+
+  TF_ASSIGN_OR_RETURN(const std::string op_params_str,
+                      op_params_.SerializeAsString());
+  proto.mutable_op_params()->ParseFromString(op_params_str);
+
+  TF_ASSIGN_OR_RETURN(const std::string op_resources_str,
+                      op_resources_.SerializeAsString());
+  proto.mutable_op_resources()->ParseFromString(op_resources_str);
+
+  TF_ASSIGN_OR_RETURN(const std::string impl_string,
+                      SerializeAsStringCollectiveImpl());
+
+  for (size_t i = 0; i < op_buffers_.source_buffers.size(); ++i) {
+    TF_RETURN_IF_ERROR(SerializeSliceShapeIntoProto(
+        op_buffers_.source_buffers[i], op_buffers_.source_shapes[i],
+        proto.mutable_op_buffers()->add_source_shapes_buffer_slices()));
+  }
+
+  for (size_t i = 0; i < op_buffers_.destination_buffers.size(); ++i) {
+    TF_RETURN_IF_ERROR(SerializeSliceShapeIntoProto(
+        op_buffers_.destination_buffers[i], op_buffers_.destination_shapes[i],
+        proto.mutable_op_buffers()->add_destination_shapes_buffer_slices()));
+  }
+
+  switch (proto.impl_case()) {
+    case CollectiveThunkProto::ImplCase::kAllGatherThunk:
+      proto.mutable_all_gather_thunk()->ParseFromString(impl_string);
+      break;
+    case CollectiveThunkProto::ImplCase::kAllReduceThunk:
+      proto.mutable_all_reduce_thunk()->ParseFromString(impl_string);
+      break;
+    case CollectiveThunkProto::ImplCase::kAllToAllThunk:
+      proto.mutable_all_to_all_thunk()->ParseFromString(impl_string);
+      break;
+    case CollectiveThunkProto::ImplCase::kReduceScatterThunk:
+      proto.mutable_reduce_scatter_thunk()->ParseFromString(impl_string);
+      break;
+    case CollectiveThunkProto::ImplCase::kCollectivePermuteThunk:
+      proto.mutable_collective_permute_thunk()->ParseFromString(impl_string);
+      break;
+    default:
+      return absl::UnimplementedError("SerializeAsStringImpl not implemented");
+  }
+  return proto.SerializeAsString();
+}
+
+absl::StatusOr<std::tuple<CollectiveThunk::OpParams, CollectiveThunk::OpBuffers,
+                          CollectiveThunk::OpResources>>
+CollectiveThunk::GetCollectiveThunkParamsFromProto(
+    const CollectiveThunkProto& proto,
+    const BufferAssignment& buffer_assignment) {
+  TF_ASSIGN_OR_RETURN(CollectiveThunk::OpParams op_params,
+                      CollectiveThunk::OpParams::FromProto(proto.op_params()));
+
+  CollectiveThunk::OpBuffers op_buffers;
+  for (const auto& shape_buffer_slice_proto :
+       proto.op_buffers().source_shapes_buffer_slices()) {
+    TF_ASSIGN_OR_RETURN((auto [slice, shape]),
+                        DeserializeSliceShapeFromProto(shape_buffer_slice_proto,
+                                                       buffer_assignment));
+    op_buffers.source_buffers.push_back(slice);
+    op_buffers.source_shapes.push_back(shape);
+  }
+
+  for (const auto& shape_buffer_slice_proto :
+       proto.op_buffers().destination_shapes_buffer_slices()) {
+    TF_ASSIGN_OR_RETURN((auto [slice, shape]),
+                        DeserializeSliceShapeFromProto(shape_buffer_slice_proto,
+                                                       buffer_assignment));
+    op_buffers.destination_buffers.push_back(slice);
+    op_buffers.destination_shapes.push_back(shape);
+  }
+
+  CollectiveThunk::OpResources op_resources;
+  op_resources.communicator_resource =
+      std::make_shared<Resource>(proto.op_resources().communicator_resource());
+
+  return std::make_tuple(op_params, op_buffers, op_resources);
 }
 
 Thunk::ResourceUses CollectiveThunk::resource_uses() const {
