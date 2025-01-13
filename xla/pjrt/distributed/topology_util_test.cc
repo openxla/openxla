@@ -99,7 +99,7 @@ TEST(TopologyTest, ExchangeTopology_Twice_Succeeds) {
   DeviceProto* d3 = locals[1].add_devices();
   d3->set_local_device_ordinal(1);
 
-  InMemoryKeyValueStore kv_store;
+  InMemoryKeyValueStore kv_store(/*allow_overwrite=*/false);
   std::vector<GlobalTopologyProto> globals(num_nodes);
   {
     tsl::thread::ThreadPool thread_pool(tsl::Env::Default(), "TestPool",
@@ -143,7 +143,7 @@ TEST(TopologyTest, ExchangeTopology_TwiceWithDifferentLocalTopology_Fails) {
   DeviceProto* d3 = locals[1].add_devices();
   d3->set_local_device_ordinal(1);
 
-  InMemoryKeyValueStore kv_store;
+  InMemoryKeyValueStore kv_store(/*allow_overwrite=*/false);
   std::vector<GlobalTopologyProto> globals(num_nodes);
   {
     tsl::thread::ThreadPool thread_pool(tsl::Env::Default(), "TestPool",
