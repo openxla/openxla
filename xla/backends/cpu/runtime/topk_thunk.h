@@ -21,6 +21,7 @@ limitations under the License.
 
 #include "absl/status/statusor.h"
 #include "xla/backends/cpu/runtime/thunk.h"
+#include "xla/backends/cpu/runtime/thunk.pb.h"
 #include "xla/runtime/buffer_use.h"
 #include "xla/service/buffer_assignment.h"
 #include "xla/tsl/concurrency/async_value_ref.h"
@@ -34,12 +35,18 @@ class TopKThunk final : public Thunk {
       BufferAllocation::Slice indices, int64_t batch_size, int64_t input_size,
       int64_t k);
 
+  static absl::StatusOr<std::unique_ptr<TopKThunk>> FromProto(
+      const ThunkProto& proto, const BufferAssignment& buffer_assignment);
+
   tsl::AsyncValueRef<ExecuteEvent> Execute(const ExecuteParams& params) final;
 
   BufferUses buffer_uses() const final {
     return {BufferUse::Read(values_buffer_), BufferUse::Write(output_buffer_),
             BufferUse::Write(indices_buffer_)};
   }
+
+ protected:
+  absl::StatusOr<std::string> SerializeAsStringImpl() const final;
 
  private:
   TopKThunk(Info info, BufferAllocation::Slice values,

@@ -26,6 +26,7 @@ limitations under the License.
 #include "absl/algorithm/container.h"
 #include "absl/base/dynamic_annotations.h"
 #include "absl/container/inlined_vector.h"
+#include "absl/log/log.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -38,6 +39,7 @@ limitations under the License.
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/Support/LLVM.h"
 #include "xla/backends/cpu/runtime/thunk.h"
+#include "xla/backends/cpu/runtime/thunk.pb.h"
 #include "xla/ffi/api/c_api.h"
 #include "xla/ffi/attribute_map.h"
 #include "xla/ffi/call_frame.h"
@@ -51,10 +53,9 @@ limitations under the License.
 #include "xla/service/custom_call_target_registry.h"
 #include "xla/stream_executor/device_memory.h"
 #include "xla/tsl/concurrency/async_value_ref.h"
+#include "xla/tsl/platform/errors.h"
+#include "xla/tsl/platform/statusor.h"
 #include "xla/util.h"
-#include "tsl/platform/errors.h"
-#include "tsl/platform/logging.h"
-#include "tsl/platform/statusor.h"
 #include "tsl/profiler/lib/traceme.h"
 
 namespace xla::cpu {
@@ -200,6 +201,35 @@ absl::StatusOr<std::unique_ptr<CustomCallThunk>> CustomCallThunk::Create(
                           std::move(call_frame), std::move(execution_state)));
 }
 
+absl::StatusOr<std::unique_ptr<CustomCallThunk>> CustomCallThunk::FromProto(
+    const ThunkProto& proto, const BufferAssignment& buffer_assignment) {
+  TF_ASSIGN_OR_RETURN(Thunk::Info info, Thunk::Info::FromProto(proto.info()));
+
+  CustomCallThunk::OpBuffers op_buffers;
+  for (const ShapeBufferAllocationSliceProto& arg_buff_shape :
+       proto.custom_call_thunk().op_buffers().arguments_shapes()) {
+    TF_ASSIGN_OR_RETURN(
+        (auto [arguments_buffer, shape]),
+        DeserializeSliceShapeFromProto(arg_buff_shape, buffer_assignment));
+    op_buffers.arguments_buffers.push_back(arguments_buffer);
+    op_buffers.arguments_shapes.push_back(shape);
+  }
+
+  for (const ShapeBufferAllocationSliceProto& res_buff_shape :
+       proto.custom_call_thunk().op_buffers().results_shapes()) {
+    TF_ASSIGN_OR_RETURN(
+        (auto [results_buffer, shape]),
+        DeserializeSliceShapeFromProto(res_buff_shape, buffer_assignment));
+    op_buffers.results_buffers.push_back(results_buffer);
+    op_buffers.results_shapes.push_back(shape);
+  }
+
+  return Create(std::move(info), proto.custom_call_thunk().target_name(),
+                std::move(op_buffers),
+                proto.custom_call_thunk().backend_config(),
+                proto.custom_call_thunk().api_version());
+}
+
 CustomCallThunk::CustomCallThunk(
     Info info, absl::string_view target_name, OpBuffers op_buffers,
     CustomCallApiVersion api_version, absl::string_view backend_config,
@@ -222,6 +252,26 @@ tsl::AsyncValueRef<Thunk::ExecuteEvent> CustomCallThunk::Execute(
     return CallTypedFFI(params);
   }
   return CallUntypedAPI(params);
+}
+
+absl::StatusOr<std::string> CustomCallThunk::SerializeAsStringImpl() const {
+  CustomCallThunkProto proto;
+  proto.set_target_name(target_name_);
+  proto.set_backend_config(backend_config_);
+  proto.set_api_version(api_version_);
+
+  for (size_t i = 0; i < op_buffers_.arguments_buffers.size(); ++i) {
+    TF_RETURN_IF_ERROR(SerializeSliceShapeIntoProto(
+        op_buffers_.arguments_buffers[i], op_buffers_.arguments_shapes[i],
+        proto.mutable_op_buffers()->add_arguments_shapes()));
+  }
+
+  for (size_t i = 0; i < op_buffers_.results_buffers.size(); ++i) {
+    TF_RETURN_IF_ERROR(SerializeSliceShapeIntoProto(
+        op_buffers_.results_buffers[i], op_buffers_.results_shapes[i],
+        proto.mutable_op_buffers()->add_results_shapes()));
+  }
+  return proto.SerializeAsString();
 }
 
 tsl::AsyncValueRef<Thunk::ExecuteEvent> CustomCallThunk::CallTypedFFI(

@@ -44,6 +44,7 @@ limitations under the License.
 #include "absl/types/span.h"
 #include "xla/backends/cpu/runtime/function_library.h"
 #include "xla/backends/cpu/runtime/thunk.h"
+#include "xla/backends/cpu/runtime/thunk.pb.h"
 #include "xla/layout_util.h"
 #include "xla/primitive_util.h"
 #include "xla/runtime/buffer_use.h"
@@ -107,6 +108,53 @@ absl::StatusOr<std::unique_ptr<SortThunk>> SortThunk::Create(
   return absl::WrapUnique(new SortThunk(std::move(info), inputs, dimension,
                                         is_stable, std::move(comparator_name),
                                         direction));
+}
+
+absl::StatusOr<std::unique_ptr<SortThunk>> SortThunk::FromProto(
+    const ThunkProto& proto, const BufferAssignment& buffer_assignment) {
+  TF_ASSIGN_OR_RETURN(Thunk::Info info, Thunk::Info::FromProto(proto.info()));
+  // TODO(basioli): what about LessThan?
+  std::vector<Input> inputs;
+  for (const ShapeBufferAllocationSliceProto& buffer_proto :
+       proto.sort_thunk().inputs_shapes()) {
+    TF_ASSIGN_OR_RETURN(
+        (auto [buffer_slice, buffer_shape]),
+        DeserializeSliceShapeFromProto(buffer_proto, buffer_assignment));
+    inputs.emplace_back(std::move(buffer_slice), std::move(buffer_shape));
+  }
+
+  SortDirection sort_direction =
+      proto.sort_thunk().direction() == SortThunkProto::ASCENDING
+          ? SortDirection::kAscending
+          : SortDirection::kDescending;
+
+  return Create(std::move(info), inputs, proto.sort_thunk().dimension(),
+                proto.sort_thunk().is_stable(),
+                proto.sort_thunk().comparator_name(), sort_direction);
+}
+
+absl::StatusOr<std::string> SortThunk::SerializeAsStringImpl() const {
+  SortThunkProto proto;
+  proto.set_dimension(dimension_);
+  proto.set_is_stable(is_stable_);
+  proto.set_comparator_name(comparator_name_);
+  // TODO(basioli): what about LessThan?
+  if (direction_.has_value()) {
+    switch (direction_.value()) {
+      case SortDirection::kAscending:
+        proto.set_direction(SortThunkProto::ASCENDING);
+        break;
+      case SortDirection::kDescending:
+        proto.set_direction(SortThunkProto::DESCENDING);
+        break;
+    }
+  }
+
+  for (const Input& input : inputs_) {
+    TF_RETURN_IF_ERROR(SerializeSliceShapeIntoProto(input.slice, input.shape,
+                                                    proto.add_inputs_shapes()));
+  }
+  return proto.SerializeAsString();
 }
 
 SortThunk::SortThunk(Info info, absl::Span<const Input> inputs,

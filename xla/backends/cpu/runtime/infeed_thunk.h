@@ -46,10 +46,16 @@ class InfeedThunk final : public Thunk {
       Info info, absl::Span<const InfeedBuffer> infeed_buffers,
       InfeedResources infeed_resources);
 
+  static absl::StatusOr<std::unique_ptr<InfeedThunk>> FromProto(
+      const ThunkProto& proto, const BufferAssignment& buffer_assignment);
+
   tsl::AsyncValueRef<ExecuteEvent> Execute(const ExecuteParams& params) final;
 
   BufferUses buffer_uses() const final;
   ResourceUses resource_uses() const final;
+
+ protected:
+  absl::StatusOr<std::string> SerializeAsStringImpl() const final;
 
  private:
   InfeedThunk(Info info, absl::Span<const InfeedBuffer> infeed_buffers,

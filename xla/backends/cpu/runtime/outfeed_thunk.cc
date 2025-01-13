@@ -18,21 +18,26 @@ limitations under the License.
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <string>
 #include <utility>
+#include <vector>
 
+#include "absl/log/log.h"
 #include "absl/memory/memory.h"
+#include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xla/backends/cpu/runtime/resource_use.h"
 #include "xla/backends/cpu/runtime/thunk.h"
+#include "xla/backends/cpu/runtime/thunk.pb.h"
 #include "xla/runtime/buffer_use.h"
 #include "xla/service/buffer_assignment.h"
 #include "xla/service/cpu/xfeed_manager.h"
 #include "xla/stream_executor/device_memory.h"
 #include "xla/tsl/concurrency/async_value_ref.h"
+#include "xla/tsl/platform/errors.h"
+#include "xla/tsl/platform/statusor.h"
 #include "xla/util.h"
-#include "tsl/platform/logging.h"
-#include "tsl/platform/statusor.h"
 #include "tsl/profiler/lib/traceme.h"
 
 namespace xla::cpu {
@@ -42,6 +47,29 @@ absl::StatusOr<std::unique_ptr<OutfeedThunk>> OutfeedThunk::Create(
     OutfeedResources outfeed_resources) {
   return absl::WrapUnique(new OutfeedThunk(std::move(info), outfeed_buffers,
                                            std::move(outfeed_resources)));
+}
+
+absl::StatusOr<std::unique_ptr<OutfeedThunk>> OutfeedThunk::FromProto(
+    const ThunkProto& proto, const BufferAssignment& buffer_assignment) {
+  TF_ASSIGN_OR_RETURN(Thunk::Info info, Thunk::Info::FromProto(proto.info()));
+
+  std::vector<OutfeedBuffer> outfeed_buffers;
+  for (const ShapeBufferAllocationSliceProto& buffer_proto :
+       proto.outfeed_thunk().outfeed_buffers_shapes()) {
+    TF_ASSIGN_OR_RETURN(
+        (auto [buffer_slice, buffer_shape]),
+        DeserializeSliceShapeFromProto(buffer_proto, buffer_assignment));
+    outfeed_buffers.emplace_back(std::move(buffer_slice),
+                                 std::move(buffer_shape));
+  }
+
+  OutfeedResources outfeed_resources;
+  outfeed_resources.consume_token = std::make_shared<Resource>(
+      proto.outfeed_thunk().outfeed_resources().consume_token());
+  outfeed_resources.produce_token = std::make_shared<Resource>(
+      proto.outfeed_thunk().outfeed_resources().produce_token());
+
+  return Create(std::move(info), outfeed_buffers, outfeed_resources);
 }
 
 OutfeedThunk::OutfeedThunk(Info info,
@@ -95,6 +123,22 @@ tsl::AsyncValueRef<Thunk::ExecuteEvent> OutfeedThunk::Execute(
   }
 
   return OkExecuteEvent();
+}
+
+absl::StatusOr<std::string> OutfeedThunk::SerializeAsStringImpl() const {
+  OutfeedThunkProto proto;
+
+  *proto.mutable_outfeed_resources()->mutable_consume_token() =
+      outfeed_resources_.consume_token->ToProto();
+  *proto.mutable_outfeed_resources()->mutable_produce_token() =
+      outfeed_resources_.produce_token->ToProto();
+
+  for (const OutfeedBuffer& outfeed_buffer : outfeed_buffers_) {
+    TF_RETURN_IF_ERROR(
+        SerializeSliceShapeIntoProto(outfeed_buffer.slice, outfeed_buffer.shape,
+                                     proto.add_outfeed_buffers_shapes()));
+  }
+  return proto.SerializeAsString();
 }
 
 OutfeedThunk::BufferUses OutfeedThunk::buffer_uses() const {

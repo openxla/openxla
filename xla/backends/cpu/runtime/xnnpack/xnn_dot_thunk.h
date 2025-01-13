@@ -25,6 +25,7 @@ limitations under the License.
 #include "absl/types/span.h"
 #include "xla/backends/cpu/runtime/dot_lib.h"
 #include "xla/backends/cpu/runtime/thunk.h"
+#include "xla/backends/cpu/runtime/thunk.pb.h"
 #include "xla/backends/cpu/runtime/xnnpack/xnn_fusion_thunk.h"
 #include "xla/service/buffer_assignment.h"
 #include "xla/shape.h"
@@ -46,7 +47,12 @@ class XnnDotThunk final : public XnnFusionThunk {
       BufferAllocation::Slice rhs_buffer, Shape rhs_shape,
       BufferAllocation::Slice out_buffer, Shape out_shape);
 
+  static absl::StatusOr<std::unique_ptr<XnnDotThunk>> FromProto(
+      const ThunkProto& proto, const BufferAssignment& buffer_assignment);
+
  protected:
+  absl::StatusOr<std::string> SerializeAsStringImpl() const final;
+
   std::string fusion_kind() const final;
   std::string fusion_description() const final;
 

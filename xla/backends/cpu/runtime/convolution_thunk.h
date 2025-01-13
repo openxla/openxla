@@ -46,6 +46,9 @@ class ConvolutionThunk final : public Thunk {
       const Shape& output_shape, const ConvolutionDimensionNumbers& dnums,
       const Window& window, int64_t feature_group_count);
 
+  static absl::StatusOr<std::unique_ptr<ConvolutionThunk>> FromProto(
+      const ThunkProto& proto, const BufferAssignment& buffer_assignment);
+
   tsl::AsyncValueRef<ExecuteEvent> Execute(const ExecuteParams& params) final;
 
   Thunk::BufferUses buffer_uses() const final {
@@ -54,24 +57,26 @@ class ConvolutionThunk final : public Thunk {
             {output_buffer_, BufferUse::kWrite}};
   }
 
+ protected:
+  absl::StatusOr<std::string> SerializeAsStringImpl() const final;
+
  private:
-  ConvolutionThunk(Info info, BufferAllocation::Slice input_buffer,
-                   const Shape& input_shape,
-                   BufferAllocation::Slice kernel_buffer,
-                   const Shape& kernel_shape,
-                   BufferAllocation::Slice output_buffer,
-                   const Shape& output_shape, int64_t input_batch,
-                   const absl::InlinedVector<int64_t, 2>& input_dims,
-                   int64_t input_channels,
-                   const absl::InlinedVector<int64_t, 2>& kernel_dims,
-                   int64_t kernel_channels, int64_t kernel_filters,
-                   const absl::InlinedVector<int64_t, 2>& output_dims,
-                   const absl::InlinedVector<int64_t, 2>& strides,
-                   const absl::InlinedVector<int64_t, 2>& padding_before,
-                   const absl::InlinedVector<int64_t, 2>& padding_after,
-                   const absl::InlinedVector<int64_t, 2>& base_dilation,
-                   const absl::InlinedVector<int64_t, 2>& window_dilation,
-                   int64_t feature_group_count, Options options);
+  ConvolutionThunk(
+      Info info, BufferAllocation::Slice input_buffer, const Shape& input_shape,
+      BufferAllocation::Slice kernel_buffer, const Shape& kernel_shape,
+      BufferAllocation::Slice output_buffer, const Shape& output_shape,
+      int64_t input_batch, const absl::InlinedVector<int64_t, 2>& input_dims,
+      int64_t input_channels,
+      const absl::InlinedVector<int64_t, 2>& kernel_dims,
+      int64_t kernel_channels, int64_t kernel_filters,
+      const absl::InlinedVector<int64_t, 2>& output_dims,
+      const absl::InlinedVector<int64_t, 2>& strides,
+      const absl::InlinedVector<int64_t, 2>& padding_before,
+      const absl::InlinedVector<int64_t, 2>& padding_after,
+      const absl::InlinedVector<int64_t, 2>& base_dilation,
+      const absl::InlinedVector<int64_t, 2>& window_dilation,
+      int64_t feature_group_count, Options options,
+      const ConvolutionDimensionNumbers& dnums, const Window& window);
 
   void HandleACLConvolution(const ExecuteParams& params,
                             se::DeviceMemoryBase input,
@@ -137,6 +142,8 @@ class ConvolutionThunk final : public Thunk {
   int64_t feature_group_count_;
   int convolution_rank_;
   Options options_;
+  ConvolutionDimensionNumbers dnums_;
+  Window window_;
 };
 
 }  // namespace xla::cpu

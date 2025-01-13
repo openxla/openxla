@@ -22,9 +22,14 @@ limitations under the License.
 #include <string>
 #include <utility>
 
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "xla/backends/cpu/collectives/cpu_collectives.h"
 #include "xla/backends/cpu/collectives/in_process_collectives.h"
+#include "xla/backends/cpu/runtime/collective_thunk.pb.h"
+#include "xla/backends/cpu/runtime/thunk.pb.h"
 #include "xla/executable_run_options.h"
 #include "xla/service/cpu/cpu_executable_run_options.h"
 #include "xla/service/global_device_id.h"
@@ -32,10 +37,27 @@ limitations under the License.
 #include "xla/stream_executor/stream_executor.h"
 #include "xla/tsl/concurrency/async_value_ref.h"
 #include "xla/tsl/platform/logging.h"
+#include "xla/tsl/platform/statusor.h"
 #include "tsl/profiler/lib/traceme.h"
 #include "tsl/profiler/lib/traceme_encode.h"
 
 namespace xla::cpu {
+
+absl::StatusOr<std::string> Thunk::Info::SerializeAsString() const {
+  InfoProto proto;
+  proto.set_op_name(op_name);
+  proto.set_module_name(module_name);
+  proto.set_module_id(module_id);
+  return proto.SerializeAsString();
+}
+
+absl::StatusOr<Thunk::Info> Thunk::Info::FromProto(const InfoProto& proto) {
+  return Info({
+      proto.op_name(),
+      proto.module_name(),
+      proto.module_id(),
+  });
+}
 
 absl::string_view Thunk::KindToString(Kind kind) {
   switch (kind) {
@@ -83,8 +105,102 @@ absl::string_view Thunk::KindToString(Kind kind) {
       return "while";
     case Kind::kXnnFusion:
       return "xnn-fusion";
+    case Kind::kUnknown:
+      return "unknown";
   }
 }
+
+Thunk::Kind Thunk::ProtoThunkToThunkKind(const ThunkProto& proto) {
+  auto collective_proto_kind_to_kind =
+      [](const CollectiveThunkProto::ImplCase& proto_kind) {
+        switch (proto_kind) {
+          case CollectiveThunkProto::ImplCase::kAllGatherThunk:
+            return Kind::kAllGather;
+          case CollectiveThunkProto::ImplCase::kAllReduceThunk:
+            return Kind::kAllReduce;
+          case CollectiveThunkProto::ImplCase::kAllToAllThunk:
+            return Kind::kAllToAll;
+          case CollectiveThunkProto::ImplCase::kCollectivePermuteThunk:
+            return Kind::kCollectivePermute;
+          case CollectiveThunkProto::ImplCase::kReduceScatterThunk:
+            return Kind::kReduceScatter;
+          default:
+            return Kind::kUnknown;
+        }
+      };
+
+  auto xnn_fusion_proto_kind_to_kind =
+      [](const XnnFusionThunkProto::ImplCase& proto_kind) {
+        switch (proto_kind) {
+          case XnnFusionThunkProto::ImplCase::kXnnDotThunk:
+            // NOTE(basioli) follow up CL should add XnnDotThunk, we should
+            // abide by the same inheritance pattern as the other thunks.
+            return Kind::kXnnFusion;
+          default:
+            return Kind::kUnknown;
+        }
+      };
+
+  switch (proto.impl_case()) {
+    case ThunkProto::ImplCase::kCollectiveThunk:
+      return collective_proto_kind_to_kind(
+          proto.collective_thunk().impl_case());
+    case ThunkProto::ImplCase::kCallThunk:
+      return Kind::kCall;
+    case ThunkProto::ImplCase::kConditionalThunk:
+      return Kind::kConditional;
+    case ThunkProto::ImplCase::kConvolutionThunk:
+      return Kind::kConvolution;
+    case ThunkProto::ImplCase::kCopyThunk:
+      return Kind::kCopy;
+    case ThunkProto::ImplCase::kCustomCallThunk:
+      return Kind::kCustomCall;
+    case ThunkProto::ImplCase::kDotThunk:
+      return Kind::kDot;
+    case ThunkProto::ImplCase::kFftThunk:
+      return Kind::kFft;
+    case ThunkProto::ImplCase::kInfeedThunk:
+      return Kind::kInfeed;
+    case ThunkProto::ImplCase::kKernelThunk:
+      return Kind::kKernel;
+    case ThunkProto::ImplCase::kOutfeedThunk:
+      return Kind::kOutfeed;
+    case ThunkProto::ImplCase::kRngGetAndUpdateStateThunk:
+      return Kind::kRngGetAndUpdateState;
+    case ThunkProto::ImplCase::kSortThunk:
+      return Kind::kSort;
+    case ThunkProto::ImplCase::kTopKThunk:
+      return Kind::kTopK;
+    case ThunkProto::ImplCase::kWhileThunk:
+      return Kind::kWhile;
+    case ThunkProto::ImplCase::kXnnFusionThunk:
+      return xnn_fusion_proto_kind_to_kind(
+          proto.xnn_fusion_thunk().impl_case());
+    default:
+      return Kind::kUnknown;
+  }
+}
+
+/*virtual*/ absl::StatusOr<std::string> Thunk::SerializeAsString() const {
+  ThunkProto proto;
+  absl::string_view kind_as_string_view = KindToString(kind_);
+  std::string kind_as_string(kind_as_string_view.begin(),
+                             kind_as_string_view.end());
+  proto.set_kind(kind_as_string);
+  TF_ASSIGN_OR_RETURN(const std::string info_as_string,
+                      info().SerializeAsString());
+  proto.mutable_info()->ParseFromString(info_as_string);
+  TF_ASSIGN_OR_RETURN(const std::string impl_as_string,
+                      SerializeAsStringImpl());
+
+  proto.mutable_info()->ParseFromString(info_as_string);
+  return proto.SerializeAsString();
+}
+
+absl::StatusOr<std::string> Thunk::SerializeAsStringImpl() const {
+  return absl::UnimplementedError("SerializeAsStringImpl is not implemented");
+}
+
 Thunk::Thunk(Kind kind, Info info)
     : kind_(kind),
       info_(std::move(info)),
@@ -205,6 +321,22 @@ ThunkSequence::ResourceUses ThunkSequence::resource_uses() const {
     resource_uses.insert(resource_uses.end(), uses.begin(), uses.end());
   }
   return resource_uses;
+}
+
+absl::StatusOr<std::string> ThunkSequence::SerializeAsString() const {
+  ThunkSequenceProto proto;
+  proto.mutable_thunks()->Reserve(size());
+  for (auto& thunk : *this) {
+    ThunkProto* thunk_proto = proto.add_thunks();
+
+    TF_ASSIGN_OR_RETURN(const std::string thunk_as_string,
+                        thunk->SerializeAsString());
+    if (!thunk_proto->ParseFromString(thunk_as_string)) {
+      return absl::InternalError(absl::StrFormat(
+          "Failed to parse thunk proto:\n %s", thunk_as_string));
+    }
+  }
+  return proto.SerializeAsString();
 }
 
 }  // namespace xla::cpu

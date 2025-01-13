@@ -25,6 +25,7 @@ limitations under the License.
 #include "absl/log/check.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
@@ -45,6 +46,21 @@ limitations under the License.
 #include "xla/xla_data.pb.h"
 
 namespace xla {
+
+absl::StatusOr<ReductionKind> StringToReductionKind(
+    absl::string_view reduction_kind) {
+  if (reduction_kind == "sum") {
+    return ReductionKind::SUM;
+  } else if (reduction_kind == "prod") {
+    return ReductionKind::PRODUCT;
+  } else if (reduction_kind == "min") {
+    return ReductionKind::MIN;
+  } else if (reduction_kind == "max") {
+    return ReductionKind::MAX;
+  }
+  return absl::InvalidArgumentError(
+      absl::StrCat("Invalid reduction kind: ", reduction_kind));
+}
 
 // Match the instruction to a reduction kind. We can represent and/or of pred as
 // min/max. This works because pred is stored as an 8-bit int of value 0 or 1.

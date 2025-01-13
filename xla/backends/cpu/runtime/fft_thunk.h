@@ -42,10 +42,16 @@ class FftThunk final : public Thunk {
       BufferAllocation::Slice input_buffer, const Shape& input_shape,
       BufferAllocation::Slice output_buffer, const Shape& output_shape);
 
+  static absl::StatusOr<std::unique_ptr<FftThunk>> FromProto(
+      const ThunkProto& proto, const BufferAssignment& buffer_assignment);
+
   tsl::AsyncValueRef<Thunk::ExecuteEvent> Execute(
       const ExecuteParams& params) final;
 
   BufferUses buffer_uses() const final;
+
+ protected:
+  absl::StatusOr<std::string> SerializeAsStringImpl() const final;
 
  private:
   // Constructs a thunk for launching an FFT on a host.

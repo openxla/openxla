@@ -17,16 +17,18 @@ limitations under the License.
 
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <utility>
 
 #include "absl/memory/memory.h"
 #include "absl/status/statusor.h"
 #include "xla/backends/cpu/runtime/thunk.h"
+#include "xla/backends/cpu/runtime/thunk.pb.h"
 #include "xla/service/buffer_assignment.h"
 #include "xla/service/cpu/runtime_topk.h"
 #include "xla/stream_executor/device_memory.h"
 #include "xla/tsl/concurrency/async_value_ref.h"
-#include "tsl/platform/statusor.h"
+#include "xla/tsl/platform/statusor.h"
 
 namespace xla::cpu {
 
@@ -50,6 +52,28 @@ absl::StatusOr<std::unique_ptr<TopKThunk>> TopKThunk::Create(
                                         indices, batch_size, input_size, k));
 }
 
+absl::StatusOr<std::unique_ptr<TopKThunk>> TopKThunk::FromProto(
+    const ThunkProto& proto, const BufferAssignment& buffer_assignment) {
+  TF_ASSIGN_OR_RETURN(Thunk::Info info, Thunk::Info::FromProto(proto.info()));
+
+  TF_ASSIGN_OR_RETURN(
+      BufferAllocation::Slice values_buffer,
+      DeserializeSliceFromProto(proto.top_k_thunk().values_buffer(),
+                                buffer_assignment));
+  TF_ASSIGN_OR_RETURN(
+      BufferAllocation::Slice output_buffer,
+      DeserializeSliceFromProto(proto.top_k_thunk().output_buffer(),
+                                buffer_assignment));
+  TF_ASSIGN_OR_RETURN(
+      BufferAllocation::Slice indices_buffer,
+      DeserializeSliceFromProto(proto.top_k_thunk().indices_buffer(),
+                                buffer_assignment));
+
+  return Create(std::move(info), values_buffer, output_buffer, indices_buffer,
+                proto.top_k_thunk().batch_size(),
+                proto.top_k_thunk().input_size(), proto.top_k_thunk().k());
+}
+
 tsl::AsyncValueRef<Thunk::ExecuteEvent> TopKThunk::Execute(
     const ExecuteParams& params) {
   TF_ASSIGN_OR_RETURN(
@@ -67,6 +91,23 @@ tsl::AsyncValueRef<Thunk::ExecuteEvent> TopKThunk::Execute(
                             reinterpret_cast<float*>(output.opaque()),
                             reinterpret_cast<int32_t*>(indices.opaque()));
   return OkExecuteEvent();
+}
+
+absl::StatusOr<std::string> TopKThunk::SerializeAsStringImpl() const {
+  TopKThunkProto proto;
+  proto.set_batch_size(batch_size_);
+  proto.set_input_size(input_size_);
+  proto.set_k(k_);
+  TF_ASSIGN_OR_RETURN(const std::string values_as_str,
+                      values_buffer_.SerializeAsString());
+  proto.mutable_values_buffer()->ParseFromString(values_as_str);
+  TF_ASSIGN_OR_RETURN(const std::string output_as_str,
+                      output_buffer_.SerializeAsString());
+  proto.mutable_output_buffer()->ParseFromString(output_as_str);
+  TF_ASSIGN_OR_RETURN(const std::string indices_as_str,
+                      indices_buffer_.SerializeAsString());
+  proto.mutable_indices_buffer()->ParseFromString(indices_as_str);
+  return proto.SerializeAsString();
 }
 
 }  // namespace xla::cpu

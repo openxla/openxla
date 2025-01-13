@@ -19,6 +19,8 @@ limitations under the License.
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
+#include <tuple>
 #include <vector>
 
 #include "absl/container/inlined_vector.h"
@@ -27,6 +29,7 @@ limitations under the License.
 #include "absl/status/statusor.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
+#include "xla/backends/cpu/runtime/collective_thunk.pb.h"
 #include "xla/backends/cpu/runtime/resource_use.h"
 #include "xla/backends/cpu/runtime/thunk.h"
 #include "xla/service/buffer_assignment.h"
@@ -50,6 +53,9 @@ class CollectiveThunk : public Thunk {
     bool has_channel_id;
     std::optional<bool> use_global_device_ids;
     std::vector<ReplicaGroup> group;
+
+    absl::StatusOr<std::string> SerializeAsString() const;
+    static absl::StatusOr<OpParams> FromProto(const OpParamsProto& proto);
   };
 
   // Source and destination buffers for the collective operation.
@@ -64,6 +70,7 @@ class CollectiveThunk : public Thunk {
   // Resources used by the collective operation.
   struct OpResources {
     std::shared_ptr<Resource> communicator_resource;
+    absl::StatusOr<std::string> SerializeAsString() const;
   };
 
   // Device memory resolved for the collective operation buffers.
@@ -83,7 +90,20 @@ class CollectiveThunk : public Thunk {
   BufferUses buffer_uses() const final;
   ResourceUses resource_uses() const final;
 
+  static absl::StatusOr<std::unique_ptr<CollectiveThunk>> FromProto(
+      const ThunkProto& proto, const BufferAssignment& buffer_assignment);
+
  protected:
+  absl::StatusOr<std::string> SerializeAsStringImpl() const final;
+
+  virtual absl::StatusOr<std::string> SerializeAsStringCollectiveImpl() const {
+    return absl::UnimplementedError("SerializeAsStringImpl not implemented");
+  }
+
+  static absl::StatusOr<std::tuple<OpParams, OpBuffers, OpResources>>
+  GetCollectiveThunkParamsFromProto(const CollectiveThunkProto& proto,
+                                    const BufferAssignment& buffer_assignment);
+
   // Callback for collective thunk implementations.
   using Callback = absl::AnyInvocable<absl::Status(const RendezvousKey& key,
                                                    Communicator& comm)>;
