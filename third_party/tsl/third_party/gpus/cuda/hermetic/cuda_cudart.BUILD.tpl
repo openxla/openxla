@@ -27,7 +27,7 @@ cc_import(
 )
 %{multiline_comment}
 cc_library(
-    name = "cuda_driver",
+    name = "cuda_driver_stub",
     %{comment}deps = [":cuda_stub"],
     visibility = ["//visibility:public"],
 )
@@ -36,7 +36,8 @@ cc_library(
     name = "cudart",
     %{comment}deps = select({
         %{comment}"@cuda_driver//:forward_compatibility": ["@cuda_driver//:nvidia_driver"],
-        %{comment}"//conditions:default": [":cuda_driver"],
+        %{comment}":cuda_stub": [":cuda_driver_stub"],
+        %{comment}"//conditions:default": [],
     %{comment}}) + [
         %{comment}":cudart_shared_library",
     %{comment}],
@@ -129,4 +130,15 @@ cc_library(
     includes = ["include"],
     strip_include_prefix = "include",
     visibility = ["@local_config_cuda//cuda:__pkg__"],
+)
+
+# Flag indicating if we should add dependency on libcuda stub.
+bool_flag(
+    name = "enable_cuda_stub",
+    build_setting_default = True,
+)
+
+config_setting(
+    name = "cuda_stub",
+    flag_values = {":enable_cuda_stub": "True"},
 )
