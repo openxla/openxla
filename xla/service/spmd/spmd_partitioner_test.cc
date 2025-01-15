@@ -11077,11 +11077,11 @@ ENTRY entry {
 })";
   TF_ASSERT_OK_AND_ASSIGN(auto module,
                           PartitionComputation(hlo_string, /*num_devices=*/8));
-  const auto root = module->entry_computation()->root_instruction();
   VLOG(1) << module->ToString();
-  auto slice = AllOf(op::Shape("f32[1,1]"),
-                     op::Copy(op::DynamicSlice(op::Constant(), _, _)));
-  EXPECT_THAT(root, op::Reshape(op::AllReduce(op::Select(_, slice, _))));
+  auto constant = AllOf(op::Constant(), op::Shape("f32[1,8]"));
+  auto slice = AllOf(op::Slice(constant), op::Shape("f32[1,1]"));
+  auto reshaped = AllOf(op::Reshape(slice), op::Shape("f32[]"));
+  EXPECT_THAT(module->entry_computation()->root_instruction(), reshaped);
 }
 
 TEST_P(SpmdPartitioningTest, GatherParallelDimRedistributionOperand) {
