@@ -35,6 +35,8 @@ namespace {
 
 namespace op = xla::testing::opcode_matchers;
 
+using ::testing::ElementsAre;
+
 class ConditionalCanonicalizerTest : public HloHardwareIndependentTestBase {
  protected:
   ConditionalCanonicalizerTest() {}
@@ -64,6 +66,36 @@ ENTRY entry {
                     .value();
   ConditionalCanonicalizer pass;
   EXPECT_TRUE(pass.Run(module.get()).value());
+  EXPECT_THAT(module->entry_computation()->root_instruction(),
+              op::GetTupleElement(op::Conditional()));
+}
+
+TEST_F(ConditionalCanonicalizerTest, ArgumentRewrite) {
+  auto module = ParseAndReturnVerifiedModule(R"(
+HloModule _
+true_branch {
+  true_param = s32[3,2] parameter(0)
+  ROOT root = s32[] constant(0)
+}
+
+false_branch {
+  false_param = s32[3,2] parameter(0)
+  ROOT root = s32[] constant(1)
+}
+
+ENTRY entry {
+  param0 = s32[3,2] parameter(0)
+  branch = pred[] constant(false)
+  ROOT conditional = s32[] conditional(branch, param0, param0),
+    true_computation=true_branch, false_computation=false_branch
+}
+)")
+                    .value();
+  ConditionalCanonicalizer pass;
+  EXPECT_TRUE(pass.Run(module.get()).value());
+
+  EXPECT_THAT(module->entry_computation()->parameter_instruction(0)->users(),
+              ElementsAre(op::Tuple(), op::Tuple()));
   EXPECT_THAT(module->entry_computation()->root_instruction(),
               op::GetTupleElement(op::Conditional()));
 }
