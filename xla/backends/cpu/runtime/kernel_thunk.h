@@ -65,6 +65,8 @@ class KernelThunk : public Thunk {
  protected:
   tsl::AsyncValueRef<ExecuteEvent> ExecuteInternal(const ExecuteParams& params);
 
+  absl::StatusOr<std::string> SerializeAsStringImpl() const final;
+
  private:
   friend class ::xla::cpu::KernelThunk;
 
