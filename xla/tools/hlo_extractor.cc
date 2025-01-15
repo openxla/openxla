@@ -329,6 +329,7 @@ absl::Status Inline(HloModule* module) {
   for (HloComputation* computation : module->computations()) {
     for (HloInstruction* instruction : computation->instructions()) {
       if (instruction->opcode() == HloOpcode::kFusion) {
+        TF_RETURN_IF_ERROR(instruction->DropAllControlDeps());
         TF_RETURN_IF_ERROR(computation->ReplaceWithNewInstruction(
             instruction, HloInstruction::CreateCall(
                              instruction->shape(), instruction->operands(),
